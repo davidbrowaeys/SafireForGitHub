@@ -53,6 +53,10 @@ on:
         required: false
         type: string
         default: '.*Test.*$'
+    secrets:
+      SFDX_AUTH_URL:
+        description: 'The Salesforce Auth URL secret value passed by the caller'
+        required: true
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
