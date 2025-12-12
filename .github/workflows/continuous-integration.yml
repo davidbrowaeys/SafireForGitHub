@@ -83,6 +83,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: 🔑 Initialize Pipeline
+        run: |
+          npm install --save-dev
+          sf plugins link $(npm root -g)/dxb
+          sf plugins 
+        shell: bash
           
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
       - name: 🔑 Salesforce Login
