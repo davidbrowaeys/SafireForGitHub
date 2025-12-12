@@ -89,6 +89,11 @@ jobs:
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
           sf plugins 
+          which git
+          if ! which git > /dev/null; then
+            echo "Git not found. Installing..."
+            apt-get update && apt-get install -y git # Example for Debian/Ubuntu
+          fi
         shell: bash
           
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
