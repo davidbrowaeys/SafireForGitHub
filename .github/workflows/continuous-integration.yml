@@ -20,7 +20,10 @@ on:
         description: 'Run deployment as check-only (validation)'
         required: true
         type: boolean
-      # FIX: Removed unused 'delta-mode' input, as 'deployment-mode' should cover DELTA logic
+      delta-mode:
+        description: 'Deployment Mode (DELTA or FULL)'
+        required: true
+        type: string
       compare-with:
         description: 'Git branch to compare against for Delta deployment'
         required: true
@@ -65,6 +68,7 @@ jobs:
       # Map inputs to environment variables used in the script
       TARGET_ENV: ${{ inputs.target-env }}
       DEPLOYMENT_MODE: ${{ inputs.deployment-mode }}
+      DELTA_MODE: ${{ inputs.delta-mode }}
       TEST_LEVEL: ${{ inputs.test-level }}
       SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
       CHECK_ONLY: ${{ inputs.check-only }}
@@ -125,8 +129,8 @@ jobs:
             git config diff.renameLimit 999999
             
             # 1. Generate package.xml and check for changes
-            echo "sf dxb source delta -k $COMPARE_WITH -p $OUTPUT_DIR -g"
-            sf dxb source delta -k $COMPARE_WITH -p $OUTPUT_DIR -g
+            echo "sf dxb source delta -m $DELTA_MODE -k $COMPARE_WITH -p $OUTPUT_DIR -g"
+            sf dxb source delta -m $DELTA_MODE -k $COMPARE_WITH -p $OUTPUT_DIR -g
             
             # Check if package.xml contains actual metadata members
             if ! grep -q '<members>' "$OUTPUT_DIR/package.xml"; then
