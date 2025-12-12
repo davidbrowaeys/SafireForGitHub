@@ -110,6 +110,7 @@ jobs:
       - name: 🧮 Calculate Delta
         # Set ID to allow checking for changes later
         id: delta_calc
+        working-directory: ${{ github.workspace }}
         run: |
           # Use environment variables which are easier to read and less error-prone
           if [ "$DEPLOYMENT_MODE" = "FULL" ]
