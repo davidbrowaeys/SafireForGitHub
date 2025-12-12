@@ -87,7 +87,6 @@ jobs:
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
       - name: 🔑 Salesforce Login
         run: |
-          # FIX: Access the secret using the fixed secret key defined in 'on:workflow_call:secrets'
           AUTH_URL_VALUE="${{ secrets.AUTH_URL }}"
           
           if [ -z "$AUTH_URL_VALUE" ]; then
@@ -124,7 +123,8 @@ jobs:
 
           else # DELTA Deployment Mode
             echo "--- Delta Deployment Mode (Comparing with $COMPARE_WITH) ---"
-            git config diff.renameLimit 999999
+            #increase git file name config
+            #git config diff.renameLimit 999999
             
             # 1. Generate package.xml and check for changes
             echo "sf dxb source delta -m $DELTA_MODE -k $COMPARE_WITH -p $OUTPUT_DIR -g"
