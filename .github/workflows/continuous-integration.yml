@@ -34,6 +34,10 @@ on:
         required: false
         type: string
         default: ''
+      auth-url-secret-name:
+        description: 'GitHub Secret name containing the SFDX Auth URL'
+        required: true
+        type: string
 
 jobs:
   salesforce_ci:
@@ -43,6 +47,7 @@ jobs:
     env:
       # Map inputs to environment variables used in the script
       TARGET_ENV: ${{ inputs.target-env }}
+      SFDX_AUTH_URL_SECRET_NAME: ${{ inputs.auth-url-secret-name }}
       DEPLOYMENT_MODE: ${{ inputs.deployment-mode }}
       TEST_LEVEL: ${{ inputs.test-level }}
       SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
@@ -64,7 +69,7 @@ jobs:
       # 1. Login to Salesforce (using the secret passed from the caller)
       - name: 🔑 Salesforce Login
         run: |
-          AUTH_URL_VALUE=$(echo "${{ secrets.AUTH_URL }}")
+          AUTH_URL_VALUE=$(echo "${{ secrets[env.SFDX_AUTH_URL_SECRET_NAME] }}")
           if [ -z "$AUTH_URL_VALUE" ]; then
             echo "::error::SFDX Auth URL secret not found. Check secret name and permissions."
             exit 1
