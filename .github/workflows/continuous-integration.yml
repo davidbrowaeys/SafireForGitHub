@@ -34,10 +34,10 @@ on:
         required: false
         type: string
         default: ''
+    secrets:
       auth-url-secret-name:
         description: 'GitHub Secret name containing the SFDX Auth URL'
         required: true
-        type: string
 
 jobs:
   salesforce_ci:
