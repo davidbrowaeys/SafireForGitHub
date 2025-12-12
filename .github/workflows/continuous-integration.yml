@@ -61,6 +61,7 @@ jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
     container: brovasi/dxb
+    environment: ${{ inputs.target-env }}
 
     env:
       # Map inputs to environment variables used in the script
