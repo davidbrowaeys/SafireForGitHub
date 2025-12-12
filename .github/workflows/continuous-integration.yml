@@ -53,10 +53,6 @@ on:
         required: false
         type: string
         default: '.*Test.*$'
-    secrets:
-      SFDX_AUTH_URL:
-        description: 'The Salesforce Auth URL secret value passed by the caller'
-        required: true
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
@@ -85,7 +81,7 @@ jobs:
         with:
           fetch-depth: 0
           
-      # 1. Login to Salesforce (using the common, fixed secret SFDX_AUTH_URL)
+      # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
       - name: 🔑 Salesforce Login
         run: |
           # FIX: Access the secret using the fixed secret key defined in 'on:workflow_call:secrets'
