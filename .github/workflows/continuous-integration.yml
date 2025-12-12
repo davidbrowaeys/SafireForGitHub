@@ -113,6 +113,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           # Use environment variables which are easier to read and less error-prone
+          ls 
           if [ "$DEPLOYMENT_MODE" = "FULL" ]
           then
             echo "--- Full Deployment Mode ---"
