@@ -53,12 +53,6 @@ on:
         required: false
         type: string
         default: '.*Test.*$'
-    secrets:
-      # FIX: The reusable workflow must explicitly define the secret it expects by name
-      SFDX_AUTH_URL:
-        description: 'The Salesforce Auth URL secret value passed by the caller'
-        required: true
-
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
@@ -90,7 +84,7 @@ jobs:
       - name: 🔑 Salesforce Login
         run: |
           # FIX: Access the secret using the fixed secret key defined in 'on:workflow_call:secrets'
-          AUTH_URL_VALUE="${{ secrets.SFDX_AUTH_URL }}"
+          AUTH_URL_VALUE="${{ secrets.AUTH_URL }}"
           
           if [ -z "$AUTH_URL_VALUE" ]; then
             echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the 'SFDX_AUTH_URL' key."
