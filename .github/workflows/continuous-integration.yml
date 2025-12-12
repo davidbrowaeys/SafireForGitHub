@@ -20,10 +20,7 @@ on:
         description: 'Run deployment as check-only (validation)'
         required: true
         type: boolean
-      delta-mode:
-        description: ''
-        required: true
-        type: string
+      # FIX: Removed unused 'delta-mode' input, as 'deployment-mode' should cover DELTA logic
       compare-with:
         description: 'Git branch to compare against for Delta deployment'
         required: true
@@ -39,20 +36,25 @@ on:
         type: string
         default: ''
       outputdir:
-        description: ''
+        description: 'Output directory for artifacts'
         required: false
         type: string
         default: 'results'
       change-detection-type:
-        description: ''
+        description: 'Metadata type for test class detection (e.g., classes, all)'
         required: false
         type: string
         default: 'classes'
       test-class-regex: 
-        description: ''
+        description: 'Regex for matching test class names'
         required: false
         type: string
         default: '.*Test.*$'
+    secrets:
+      # FIX: The reusable workflow must explicitly define the secret it expects by name
+      SFDX_AUTH_URL:
+        description: 'The Salesforce Auth URL secret value passed by the caller'
+        required: true
 
 jobs:
   salesforce_ci:
@@ -69,92 +71,80 @@ jobs:
       MIN_CODE_COVERAGE: ${{ inputs.min-code-coverage }}
       COMPARE_WITH: ${{ inputs.compare-with }}
       
-      # Fixed utility variables
-      OUTPUT_DIR: 'delta'
-      CHANGE_DETECTION_TYPE: 'classes'
-      TEST_CLASS_REGEX: '.*Test.*$'
+      # FIX: Using inputs directly instead of hardcoding utility variables
+      OUTPUT_DIR: ${{ inputs.outputdir }}
+      CHANGE_DETECTION_TYPE: ${{ inputs.change-detection-type }}
+      TEST_CLASS_REGEX: ${{ inputs.test-class-regex }}
 
     steps:
       - name: ⬇️ Checkout Repository (Salesforce Project)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      # 1. Login to Salesforce (using the secret passed from the caller)
+          
+      # 1. Login to Salesforce (using the common, fixed secret SFDX_AUTH_URL)
       - name: 🔑 Salesforce Login
         run: |
-          AUTH_URL_VALUE=$(echo "${{ secrets.AUTH_URL }}")
+          # FIX: Access the secret using the fixed secret key defined in 'on:workflow_call:secrets'
+          AUTH_URL_VALUE="${{ secrets.SFDX_AUTH_URL }}"
+          
           if [ -z "$AUTH_URL_VALUE" ]; then
-            echo "::error::SFDX Auth URL secret not found. Check secret name and permissions."
+            echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the 'SFDX_AUTH_URL' key."
             exit 1
           fi
+          
           echo "$AUTH_URL_VALUE" > credentials.txt
+          # Use the environment variable $TARGET_ENV
           sf org login sfdx-url -f credentials.txt -a $TARGET_ENV -s
         shell: bash
 
       # 2. Run Delta
       - name: 🧮 Calculate Delta
+        # Set ID to allow checking for changes later
+        id: delta_calc
         run: |
-          TESTLEVEL="${{ inputs.testlevel }}"
-          DEPLOYMENTMODE="${{ inputs.deploymentMode }}"
-          git config diff.renameLimit 999999
-          if [ "$DEPLOYMENTMODE" = "FULL" ]
+          # Use environment variables which are easier to read and less error-prone
+          if [ "$DEPLOYMENT_MODE" = "FULL" ]
           then
+            echo "--- Full Deployment Mode ---"
             allPackageDirectories=""
             json=$(cat sfdx-project.json)
             for i in $(echo "$json" | jq -r '.packageDirectories[].path'); do
               allPackageDirectories+=" --source-dir $i"
             done
-            echo "sf project generate manifest $allPackageDirectories -d ${{ inputs.outputdir }}"
-            sf project generate manifest $allPackageDirectories -d ${{ inputs.outputdir }}
+            echo "sf project generate manifest $allPackageDirectories -d $OUTPUT_DIR"
+            sf project generate manifest $allPackageDirectories -d $OUTPUT_DIR
+            
+            # Setup for full deployment tests
             echo "./**/*.cls" > apexclasses
             echo "" > testClasses
-          else 
-            echo "git branch"
-            git branch
-            echo "sf dxb source delta -m ${{ inputs.delta-mode }} -k ${{ inputs.compare-with }} -p ${{ inputs.outputdir }} -g"
-            sf dxb source delta -m ${{ inputs.delta-mode }} -k ${{ inputs.compare-with }} -p ${{ inputs.outputdir }} -g
-            sf dxb source delta -m ${{ inputs.delta-mode }} -k ${{ inputs.compare-with }} --json | jq -c '.result.deltaMeta[] | select (endswith(".cls"))' | paste -sd, - | sed 's/"//g' > apexclasses
-            cat ${{ inputs.outputdir }}/package.xml
-            if [ "$TESTLEVEL" = "RunSpecifiedTests" ]
-            then 
-              echo "sf dxb source fetchtest -x ${{ inputs.outputdir }}/package.xml -t ${{ inputs.change-detection-type }} --test-class-name-regex ${{ inputs.test-class-regex }} -d . > testClasses"
-              sf dxb source fetchtest -x ${{ inputs.outputdir }}/package.xml -t ${{ inputs.change-detection-type }} --test-class-name-regex ${{ inputs.test-class-regex }} -d .> testClasses    
+            echo "::set-output name=noChanges::false" # Force deployment if FULL mode
+
+          else # DELTA Deployment Mode
+            echo "--- Delta Deployment Mode (Comparing with $COMPARE_WITH) ---"
+            git config diff.renameLimit 999999
+            
+            # 1. Generate package.xml and check for changes
+            echo "sf dxb source delta -k $COMPARE_WITH -p $OUTPUT_DIR -g"
+            sf dxb source delta -k $COMPARE_WITH -p $OUTPUT_DIR -g
+            
+            # Check if package.xml contains actual metadata members
+            if ! grep -q '<members>' "$OUTPUT_DIR/package.xml"; then
+              echo "No changes detected. Skipping deployment."
+              echo "::set-output name=noChanges::true"
+              exit 0
+            fi
+
+            # 2. Extract Apex classes and test classes for specified tests
+            sf dxb source delta -k $COMPARE_WITH --json | jq -c '.result.deltaMeta[] | select (endswith(".cls"))' | paste -sd, - | sed 's/"//g' > apexclasses
+            cat $OUTPUT_DIR/package.xml
+            
+            if [ "$TEST_LEVEL" = "RunSpecifiedTests" ]; then 
+              echo "sf dxb source fetchtest -x $OUTPUT_DIR/package.xml -t $CHANGE_DETECTION_TYPE --test-class-name-regex $TEST_CLASS_REGEX -d . > testClasses"
+              sf dxb source fetchtest -x $OUTPUT_DIR/package.xml -t $CHANGE_DETECTION_TYPE --test-class-name-regex $TEST_CLASS_REGEX -d . > testClasses    
               cat testClasses
             fi
+            echo "::set-output name=noChanges::false" # Changes found, proceed
+
           fi
         shell: bash
-      # # 3. Run Code Scanner
-      # - name: 🛡️ Run Code Analyzer
-      #   id: code_scan
-      #   if: steps.delta_calc.outputs.noChanges == 'false'
-      #   # ... (Same script logic as before, using env vars) ...
-
-      # # 4. Deploy to Salesforce
-      # - name: 🚀 Deploy to Salesforce
-      #   id: deploy
-      #   if: steps.delta_calc.outputs.noChanges == 'false'
-      #   # ... (Same script logic as before, using env vars and dynamic CHECK_ONLY) ...
-        
-      # # 5. Deployment Result, Coverage, and Test Publishing (Remains the same)
-      # - name: 📋 Deployment Result & Verification
-      #   id: publish_results
-      #   if: always() && steps.delta_calc.outputs.noChanges == 'false'
-      #   run: |
-      #     # ... (unchanged logic for checking success and retrieving report, 
-      #     # which generates testresults/apex/coverage/cobertura.xml) ...
-      
-      # # ➡️ NEW STEP: Publish Code Coverage natively using GitHub Check
-      # - name: ⬆️ Publish Code Coverage Check
-      #   uses: marketplace/action-code-coverage@v2
-      #   if: steps.publish_results.outputs.TESTHASRUN == 'true'
-      #   with:
-      #     # Points to the file generated by the Salesforce report command
-      #     token: ${{ github.token }}
-      #     filename: testresults/apex/coverage/cobertura.xml
-      #     # Set the name for the check visible on the PR/Commit
-      #     name: Apex Code Coverage Report
-      #     # Set the minimum coverage threshold (using the input passed to the workflow)
-      #     minimum_coverage: ${{ inputs.min-code-coverage }}
-          # Fail the step if minimum coverage is not met
-          fail_on_below_threshold: true
