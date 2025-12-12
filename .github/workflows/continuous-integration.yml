@@ -53,6 +53,8 @@ on:
         required: false
         type: string
         default: '.*Test.*$'
+    secrets: 
+      AUTH_URL: ${{ secrets.AUTH_URL }}
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
