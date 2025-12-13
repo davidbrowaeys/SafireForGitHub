@@ -200,9 +200,9 @@ jobs:
             
             # Run the scan. We use the SEVERITY_THRESHOLD env var defined earlier.
             sf code-analyzer run \
-              --target "$APEX_CLASSES" \
-              ---output-file "codeanalyzeroutput/code-scanner-results.html" \
-              --severity-threshold "$SEVERITY_THRESHOLD"
+              -t "$APEX_CLASSES" \
+              -f "codeanalyzeroutput/code-scanner-results.html" \
+              -s "$SEVERITY_THRESHOLD"
             
             # Set output variable to track if a report was generated (equivalent to Azure's task.setvariable)
             echo "codeScannerReportExists=true" >> $GITHUB_OUTPUT
