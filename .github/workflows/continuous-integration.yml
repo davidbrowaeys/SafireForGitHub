@@ -90,11 +90,7 @@ jobs:
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
           sf plugins 
-          which git
-          if ! which git > /dev/null; then
-            echo "Git not found. Installing..."
-            apt-get update && apt-get install -y git # Example for Debian/Ubuntu
-          fi
+          git config --global --add safe.directory $PWD
         shell: bash
           
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
@@ -111,7 +107,6 @@ jobs:
           # Use the environment variable $TARGET_ENV
           sf org login sfdx-url -f credentials.txt -a $TARGET_ENV -s
         shell: bash
-
       # 2. Run Delta
       - name: 🧮 Calculate Delta
         run: |
