@@ -202,7 +202,6 @@ jobs:
             sf code-analyzer run \
               -t "$APEX_CLASSES" \
               -f "codeanalyzeroutput/code-scanner-results.html" \
-              -s "$SEVERITY_THRESHOLD"
             
             # Set output variable to track if a report was generated (equivalent to Azure's task.setvariable)
             echo "codeScannerReportExists=true" >> $GITHUB_OUTPUT
