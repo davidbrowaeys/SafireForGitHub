@@ -79,6 +79,12 @@ jobs:
       TEST_CLASS_REGEX: ${{ inputs.test-class-regex }}
 
     steps:
+    
+      - name: ⬇️ Checkout Repository (Salesforce Project)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
       - name: 🔑 Initialize Pipeline
         run: |
           npm install --save-dev
@@ -90,11 +96,6 @@ jobs:
             apt-get update && apt-get install -y git # Example for Debian/Ubuntu
           fi
         shell: bash
-        
-      - name: ⬇️ Checkout Repository (Salesforce Project)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
           
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
       - name: 🔑 Salesforce Login
@@ -113,8 +114,6 @@ jobs:
 
       # 2. Run Delta
       - name: 🧮 Calculate Delta
-        # Set ID to allow checking for changes later
-        id: delta_calc
         run: |
           # Use environment variables which are easier to read and less error-prone
           ls 
