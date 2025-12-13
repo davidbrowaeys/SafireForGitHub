@@ -53,6 +53,16 @@ on:
         required: false
         type: string
         default: '.*Test.*$'
+      org-preconfig:
+        description: 'Run pre-deployment org configuration data step'
+        required: false
+        type: boolean
+        default: false # Set a default value
+      run-code-scanner:
+        description: 'Run Salesforce code analyzer'
+        required: false
+        type: boolean
+        default: false # Set a default value
     secrets: 
       AUTH_URL:
         required: true
@@ -111,7 +121,6 @@ jobs:
       - name: 🧮 Calculate Delta
         run: |
           # Use environment variables which are easier to read and less error-prone
-          ls 
           if [ "$DEPLOYMENT_MODE" = "FULL" ]
           then
             echo "--- Full Deployment Mode ---"
@@ -157,3 +166,59 @@ jobs:
 
           fi
         shell: bash
+        
+        # 3. ⚙️ Set Specific Org Data (New Conditional Step)
+      - name: ⚙️ Set Specific Org Data
+        if: ${{ inputs.org-preconfig == true }}
+        run: |
+          TARGETENV= ${{ inputs.target-env }}
+          # Check if the output of 'sfdx-env-mapping' is non-empty
+          if [[ -s "$(sfdx-env-mapping)" ]]; then
+            CONFIG_FILE="$(sfdx-env-mapping)"
+            echo "Running: sf dxb org data --config $CONFIG_FILE --environment $TARGETENV"
+            sf dxb org data --config "$CONFIG_FILE" --environment "$TARGETENV"
+          else
+            echo "sfdx-env-mapping file is empty or not found. Skipping 'Set Specific Org Data'."
+          fi
+        shell: bash
+        
+      - name: 🛡️ Run Code Analyzer
+        id: code_analyzer
+        continue-on-error: true # Azure's 'continueOnError: true'
+        if: ${{ inputs.run-code-scanner == true }}
+        run: |
+          # apexclasses file was generated in the 'Calculate Delta' step.
+          # It contains a comma-separated list of changed Apex class paths.
+          APEX_CLASSES=$(cat apexclasses)
+          
+          # Check if the file content is NOT empty/just whitespace, similar to Azure's 'if [[ ! -z "$apexclasses" ]]'
+          if [[ -s apexclasses ]]; then
+            echo "--- Starting Code Scan on $APEX_CLASSES ---"
+            
+            # Create output directory
+            mkdir -p codeanalyzeroutput
+            
+            # Run the scan. We use the SEVERITY_THRESHOLD env var defined earlier.
+            sf code-analyzer run \
+              --target "$APEX_CLASSES" \
+              --outfile "codeanalyzeroutput/code-scanner-results.html" \
+              --severity-threshold "$SEVERITY_THRESHOLD"
+            
+            # Set output variable to track if a report was generated (equivalent to Azure's task.setvariable)
+            echo "codeScannerReportExists=true" >> $GITHUB_OUTPUT
+          
+          else
+            echo "Nothing to scan (apexclasses file is empty)."
+            echo "codeScannerReportExists=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+        
+      - name: 📤 Publish Code Analyzer Report
+        uses: actions/upload-artifact@v4
+        
+        if: ${{ steps.code_analyzer.outputs.codeScannerReportExists == 'true' }}
+        with:
+          name: Code-Analyzer-Report-${{ inputs.target-env }}
+          path: codeanalyzeroutput/code-scanner-results.html
+          
+          retention-days: 7
