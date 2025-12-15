@@ -279,20 +279,21 @@ jobs:
           cat deployResult.json | jq 
       
         shell: bash
-        
-      - name: Code Coverage Report
-        uses: irongut/CodeCoverageSummary@v1.3.0
+
+      - name: 📈 Publish Code Coverage Report
+        # This step only runs if tests were executed (e.g., test level was not NoTestRun)
         if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
+        uses: nareddy-rajani/cobertura-action@v2.2
         with:
-          filename: testresults/**/coverage/cobertura.xml
-          badge: true
-          fail_below_min: true
-          format: markdown
-          hide_branch_rate: false
-          hide_complexity: true
-          indicators: true
-          output: both
-          thresholds: '60 80'
+          # 🎯 Adjust this path to match exactly where your SFDX command places the file.
+          path: testresults/apex/cobertura-coverage.xml
+          # Optional: Display the results in the job summary (highly recommended)
+          summary: true
+          # Optional: If you want to comment on the Pull Request (requires 'pull_request' trigger)
+          # The 'summary' option is sufficient for displaying it on the job page.
+          # comment: true 
+          # Optional: Set minimum coverage percentage to fail the step if too low
+          # fail-below: 80
           
       - name: 📤 Publish Code Analyzer Report
         uses: actions/upload-artifact@v4
