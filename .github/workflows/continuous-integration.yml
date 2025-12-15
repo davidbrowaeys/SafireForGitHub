@@ -312,13 +312,12 @@ jobs:
           
         shell: bash
 
+      - name: 🛠️ Setup Pandoc
+        # This uses an external action to install the Pandoc binary on the Ubuntu runner.
+        uses: r-lib/actions/setup-pandoc@v2
+        
       - name: 🔄 Convert Report to Markdown using Pandoc
         run: |
-          # Now that Pandoc is installed, you can run it directly
-          sudo apt-get update
-          sudo apt-get install -y pandoc
-          
-           # 2. Convert the HTML Report to Markdown
           INPUT_FILE="codeanalyzeroutput/code-scanner-results.html"
           OUTPUT_FILE="codeanalyzeroutput/summary.md"
           
