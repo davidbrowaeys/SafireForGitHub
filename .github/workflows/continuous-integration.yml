@@ -88,6 +88,7 @@ jobs:
           echo "TEST_LEVEL=$TEST_LEVEL" >> $GITHUB_ENV
           
           echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
+          echo "::notice title=JOB Information Tip::DEPLOYMENT MODE: $DEPLOYMENT_MODE\nDELTA MODE: $DELTA_MODE\n"COMPARE WITH: $COMPARE_WITH\nTEST LEVEL: $TEST_LEVEL"
           echo "DELTA MODE: $DELTA_MODE"
           echo "COMPARE WITH: $COMPARE_WITH"
           echo "TEST LEVEL: $TEST_LEVEL"
