@@ -228,7 +228,6 @@ jobs:
             echo "codeScannerReportExists=false" >> $GITHUB_OUTPUT
           fi
         shell: bash
-      # ... (After the 'Calculate Delta' step, which prepares the package.xml)
 
       - name: 🚀 Salesforce Deployment
         # Use an 'if' condition to ensure this step only runs if noChanges is false.
@@ -410,7 +409,7 @@ jobs:
         
       - name: 🧹 Coverage Cleanup and Checks
         # Only run if tests were executed successfully (based on the previous step's output)
-        if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
+        if: ${{ always() && steps.sfdeploy.outputs.runTests == 'true' }}
         run: |
           # Define file paths
           COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
@@ -474,7 +473,7 @@ jobs:
 
       - name: 🎨Cobertura Summary
         # Ensure this step runs only if tests ran and produced the XML
-        if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
+        if: ${{ always() && steps.sfdeploy.outputs.runTests == 'true' }}
         run: |
           # Define file paths and GitHub URLs
           COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
