@@ -150,7 +150,7 @@ jobs:
         
         # 3. ⚙️ Set Specific Org Data (New Conditional Step)
       - name: ⚙️ Set Specific Org Data
-        if: ${{ inputs.org-preconfig == true && vars.}}
+        if: ${{ inputs.org-preconfig == true }}
         run: |
           TARGETENV= ${{ inputs.target-env }}
           # Check if the output of 'sfdx-env-mapping' is non-empty
