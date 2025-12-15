@@ -104,7 +104,7 @@ jobs:
           echo "| **Check Only (Validation)** | ${{ inputs.check-only }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Test Level | $TEST_LEVEL |" >> $GITHUB_STEP_SUMMARY
           echo "| Run Code Scanner | ${{ inputs.run-code-scanner }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Run Org Pre-Config ${{ inputs.org-preconfig }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run Org Pre-Config | ${{ inputs.org-preconfig }} |" >> $GITHUB_STEP_SUMMARY
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Configuration established successfully. Starting pipeline execution..." >> $GITHUB_STEP_SUMMARY
