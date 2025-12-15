@@ -58,9 +58,6 @@ jobs:
       # Map inputs to environment variables used in the script
       TARGET_ENV: ${{ inputs.target-env }}
       DEPLOYMENT_MODE: ${{ inputs.deployment-mode }}
-      DELTA_MODE: ${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}
-      COMPARE_WITH: ${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}
-      TEST_LEVEL: ${{ inputs.test-level != '' && inputs.test-level || (inputs.check-only == true && vars.VAL_TEST_LEVEL || vars.DEP_TEST_LEVEL) }}
       CHECK_ONLY: ${{ inputs.check-only }}
       OUTPUT_DIR: ${{ inputs.outputdir }}
       CHANGE_DETECTION_TYPE: ${{ inputs.change-detection-type }}
@@ -75,12 +72,16 @@ jobs:
           
       - name: 🔑 Initialize Pipeline
         run: |
+          DELTA_MODE: ${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}
+          COMPARE_WITH: ${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}
+          TEST_LEVEL: ${{ inputs.test-level != '' && inputs.test-level || (inputs.check-only == true && vars.VAL_TEST_LEVEL || vars.DEP_TEST_LEVEL) }}
           echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
           echo "DELTA MODE: $DELTA_MODE"
           echo "COMPARE WITH: $COMPARE_WITH"
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
           sf plugins 
+          #set safe directory to make sure the repo is a git rep, otherwise will fail when we use git command.
           git config --global --add safe.directory $PWD
         shell: bash
           
