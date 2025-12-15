@@ -265,14 +265,14 @@ jobs:
           # -----------------------------------------------------------
           # 3. Execute the SFDX Deployment Command
           # -----------------------------------------------------------
-          
+          echo "sf project start deploy -o ${{ inputs.target-env }} -x ${{ inputs.outputdir }}/package.xml -l $TEST_LEVEL $TESTCLASSES $OPTIONS" 
           # Use the target-env input, the package.xml from the delta step,
           # and all the calculated variables.
           
           # The command execution
           sf project start deploy \
             -o ${{ inputs.target-env }} \
-            -x ${{ inputs.outputdir}}/package.xml \
+            -x ${{ inputs.outputdir }}/package.xml \
             -l $TEST_LEVEL \
             $TESTCLASSES \
             $OPTIONS > deployResult.json
