@@ -269,7 +269,7 @@ jobs:
           # The command execution
           sf project start deploy \
             -o ${{ inputs.target-env }} \
-            -x delta/package.xml \
+            -x ${{ inputs.outputdir}}/package.xml \
             -l $TEST_LEVEL \
             $TESTCLASSES \
             $OPTIONS > deployResult.json
