@@ -72,9 +72,9 @@ jobs:
           
       - name: 🔑 Initialize Pipeline
         run: |
-          DELTA_MODE: ${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}
-          COMPARE_WITH: ${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}
-          TEST_LEVEL: ${{ inputs.test-level != '' && inputs.test-level || (inputs.check-only == true && vars.VAL_TEST_LEVEL || vars.DEP_TEST_LEVEL) }}
+          DELTA_MODE= ${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}
+          COMPARE_WITH= ${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}
+          TEST_LEVEL= ${{ inputs.test-level != '' && inputs.test-level || (inputs.check-only == true && vars.VAL_TEST_LEVEL || vars.DEP_TEST_LEVEL) }}
           echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
           echo "DELTA MODE: $DELTA_MODE"
           echo "COMPARE WITH: $COMPARE_WITH"
