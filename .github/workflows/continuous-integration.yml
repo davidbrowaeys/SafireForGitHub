@@ -20,24 +20,6 @@ on:
         description: 'Run deployment as check-only (validation)'
         required: true
         type: boolean
-      delta-mode:
-        description: 'Deployment Mode (DELTA or FULL)'
-        required: true
-        type: string
-      compare-with:
-        description: 'Git branch to compare against for Delta deployment'
-        required: true
-        type: string
-      severity-threshold:
-        description: 'Code Analyzer Severity Threshold'
-        required: false
-        type: string
-        default: '2'
-      min-code-coverage:
-        description: 'Minimum Apex Code Coverage Percentage (optional)'
-        required: false
-        type: string
-        default: ''
       outputdir:
         description: 'Output directory for artifacts'
         required: false
@@ -76,14 +58,10 @@ jobs:
       # Map inputs to environment variables used in the script
       TARGET_ENV: ${{ inputs.target-env }}
       DEPLOYMENT_MODE: ${{ inputs.deployment-mode }}
-      DELTA_MODE: ${{ inputs.delta-mode }}
-      TEST_LEVEL: ${{ inputs.test-level }}
-      SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+      DELTA_MODE: ${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}
+      COMPARE_WITH: ${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}
+      TEST_LEVEL: ${{ inputs.test-level != '' && inputs.test-level || (inputs.check-only == true && vars.VAL_TEST_LEVEL || vars.DEP_TEST_LEVEL) }}
       CHECK_ONLY: ${{ inputs.check-only }}
-      MIN_CODE_COVERAGE: ${{ inputs.min-code-coverage }}
-      COMPARE_WITH: ${{ inputs.compare-with }}
-      
-      # FIX: Using inputs directly instead of hardcoding utility variables
       OUTPUT_DIR: ${{ inputs.outputdir }}
       CHANGE_DETECTION_TYPE: ${{ inputs.change-detection-type }}
       TEST_CLASS_REGEX: ${{ inputs.test-class-regex }}
@@ -99,7 +77,7 @@ jobs:
         run: |
           echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
           echo "DELTA MODE: $DELTA_MODE"
-          echo "DD: ${{ vars.DD }}"
+          echo "DELTA MODE: $DELTA_MODE"
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
           sf plugins 
@@ -172,16 +150,16 @@ jobs:
         
         # 3. ⚙️ Set Specific Org Data (New Conditional Step)
       - name: ⚙️ Set Specific Org Data
-        if: ${{ inputs.org-preconfig == true }}
+        if: ${{ inputs.org-preconfig == true && vars.}}
         run: |
           TARGETENV= ${{ inputs.target-env }}
           # Check if the output of 'sfdx-env-mapping' is non-empty
-          if [[ -s "$(sfdx-env-mapping)" ]]; then
-            CONFIG_FILE="$(sfdx-env-mapping)"
+          if [[ -s "${{ vars.ORG_SPEC_METADATA_DEF }}" ]]; then
+            CONFIG_FILE="${{ vars.ORG_SPEC_METADATA_DEF }}"
             echo "Running: sf dxb org data --config $CONFIG_FILE --environment $TARGETENV"
             sf dxb org data --config "$CONFIG_FILE" --environment "$TARGETENV"
           else
-            echo "sfdx-env-mapping file is empty or not found. Skipping 'Set Specific Org Data'."
+            echo "Org. Spec Metadata Def file is empty or not found. Skipping 'Set Specific Org Data'. Go to Settings > Environment and add variable 'ORG_SPEC_METADATA_DEF' with the path of your file."
           fi
         shell: bash
         
