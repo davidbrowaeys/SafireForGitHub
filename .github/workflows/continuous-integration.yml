@@ -281,6 +281,7 @@ jobs:
         shell: bash
 
       - name: Deployment Result
+        if: '!cancelled()'
         run: | 
           # Define the output file for the GitHub Job Summary
           SUMMARY_FILE=$GITHUB_STEP_SUMMARY
