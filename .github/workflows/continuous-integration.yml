@@ -312,23 +312,32 @@ jobs:
           
         shell: bash
 
-      - name: 🔄 Convert HTML Report to Markdown
+      - name: 🔄 Convert Report to Markdown using Pandoc
         run: |
-          # Ensure npx is available (usually is on standard runners)
-          
-          # Define the input and output paths
-          INPUT_FILE="codeanalyzeroutput/code-scanner-results.html"
-          OUTPUT_FILE="codeanalyzeroutput/summary.md"
+          # Now that Pandoc is installed, you can run it directly
+          npx pandoc \
+            -f html \
+            -t markdown \
+            codeanalyzeroutput/code-scanner-results.html \
+            -o codeanalyzeroutput/summary.md
+        shell: bash
+
+      - name: 📰 Publish Markdown Summary to GitHub UI
+        run: |
+          MARKDOWN_FILE="codeanalyzeroutput/summary.md"
       
-          if [ -f "$INPUT_FILE" ]; then
-              npx html-to-markdown-cli --input "$INPUT_FILE" --output "$OUTPUT_FILE"
-              
-              # Optionally, print the resulting markdown to the job summary
-              echo "## 🛡️ Code Analyzer Summary" >> $GITHUB_STEP_SUMMARY
+          if [ -f "$MARKDOWN_FILE" ]; then
+              echo "## 🛡️ Code Analyzer Report" >> $GITHUB_STEP_SUMMARY
               echo "---" >> $GITHUB_STEP_SUMMARY
-              cat "$OUTPUT_FILE" >> $GITHUB_STEP_SUMMARY
+              
+              # Use 'cat' to dump the entire contents of the Markdown file
+              # directly into the $GITHUB_STEP_SUMMARY file.
+              cat "$MARKDOWN_FILE" >> $GITHUB_STEP_SUMMARY
+              
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "_The full HTML report is available as a downloadable artifact._" >> $GITHUB_STEP_SUMMARY
           else
-              echo "HTML report not found, skipping Markdown conversion."
+              echo "::warning title=Summary Missing::Markdown summary file ($MARKDOWN_FILE) not found."
           fi
         shell: bash
           
