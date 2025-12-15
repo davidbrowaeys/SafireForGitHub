@@ -478,10 +478,7 @@ jobs:
         run: |
           # Define file paths and GitHub URLs
           COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
-          SERVER_URL="${{ env.GITHUB_SERVER_URL }}"
-          REPO="${{ env.GITHUB_REPOSITORY }}"
-          GITHUB_REF_NAME="${{ env.GITHUB_REF_NAME }}"
-          BASE_FILE_URL="${SERVER_URL}/${REPO}/blob/${GITHUB_REF_NAME}/"
+          BASE_FILE_URL="${{ vars.GITHUB_BASE_URL }}"
       
           # -------------------------------------------------------------
           # 1. WRITE HEADER
