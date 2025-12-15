@@ -72,9 +72,6 @@ jobs:
           
       - name: 🔑 Initialize Pipeline
         run: |
-          # 🎯 FIX: No dollar sign on the left side, and no space around the equals sign.
-          # We are setting NEW shell variables here, NOT overriding existing environment variables.
-          
           # Set COMPARE_WITH based on check-only
           COMPARE_WITH="${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}"
           
