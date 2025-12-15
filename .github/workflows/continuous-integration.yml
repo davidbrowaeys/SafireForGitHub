@@ -97,6 +97,9 @@ jobs:
           
       - name: 🔑 Initialize Pipeline
         run: |
+          echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
+          echo "DELTA MODE: $DELTA_MODE"
+          echo "DD: $DD"
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
           sf plugins 
