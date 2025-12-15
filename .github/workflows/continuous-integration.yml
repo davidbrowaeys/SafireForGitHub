@@ -481,9 +481,7 @@ jobs:
           SERVER_URL="${{ env.GITHUB_SERVER_URL }}"
           REPO="${{ env.GITHUB_REPOSITORY }}"
           GITHUB_REF_NAME="${{ env.GITHUB_REF_NAME }}"
-          # Construct the base URL for the file browser, pointing to the tested commit
-          REPO_URL="$SERVER_URL\/$REPO"
-          BASE_FILE_URL="$REPO_URL\/blob\/$GITHUB_REF_NAME"
+          BASE_FILE_URL="${SERVER_URL}/${REPO}/blob/${GITHUB_REF_NAME}/"
       
           # -------------------------------------------------------------
           # 1. WRITE HEADER
