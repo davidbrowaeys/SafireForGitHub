@@ -280,6 +280,113 @@ jobs:
       
         shell: bash
 
+      - name: Deployment Result
+        run: | 
+          # Define the output file for the GitHub Job Summary
+          SUMMARY_FILE=$GITHUB_STEP_SUMMARY
+          DEPLOY_RESULT_JSON="deployResult.json"
+          
+          # --- 1. Extract Key Metrics from JSON ---
+          
+          # We use jq to safely extract values, defaulting to 0 or 'null' if paths don't exist
+          JOBID=$(jq -r '.result.id // "N/A"' "$DEPLOY_RESULT_JSON")
+          SUCCESS=$(jq -r '.result.success // "false"' "$DEPLOY_RESULT_JSON")
+          FAILEDPREDEPLOY=$(jq -r '.exitCode // "0"' "$DEPLOY_RESULT_JSON")
+          
+          # Component Metrics (Available for any deployment)
+          NUMBERCOMPONENTSTOTAL=$(jq -r '.result.numberComponentsTotal // "0"' "$DEPLOY_RESULT_JSON")
+          NUMBERCOMPONENTERRORS=$(jq -r '.result.numberComponentErrors // "0"' "$DEPLOY_RESULT_JSON")
+          
+          # Test Metrics (Only available if tests were run)
+          NUMTESTSRUN=$(jq -r '.result.details.runTestResult.numTestsRun // "0"' "$DEPLOY_RESULT_JSON")
+          TESTNUMFAILURES=$(jq -r '.result.details.runTestResult.numFailures // "0"' "$DEPLOY_RESULT_JSON")
+          
+          # --- 2. Determine Overall Deployment Status ---
+          
+          STATUS_ICON="⚪ UNKNOWN"
+          STATUS_TITLE="Deployment Report"
+          
+          if [ "$JOBID" = "N/A" ] && [ "$FAILEDPREDEPLOY" != "0" ]; then
+              STATUS_ICON="❌ BLOCKED"
+              STATUS_TITLE="Deployment Failed Before Start"
+              DEPLOYMENT_MESSAGE="The deployment could not start due to a system error (e.g., login failure, invalid manifest)."
+          elif [ "$SUCCESS" = "true" ]; then
+              STATUS_ICON="✅ SUCCESS"
+              STATUS_TITLE="Deployment Succeeded"
+              DEPLOYMENT_MESSAGE="All components and required tests passed successfully."
+          elif [ "$SUCCESS" = "false" ]; then
+              STATUS_ICON="🛑 FAILED"
+              STATUS_TITLE="Deployment Failed"
+              
+              if [ "$NUMBERCOMPONENTERRORS" != "0" ]; then
+                  DEPLOYMENT_MESSAGE="Component deployment failed with **$NUMBERCOMPONENTERRORS** error(s) out of $NUMBERCOMPONENTSTOTAL components."
+              elif [ "$TESTNUMFAILURES" != "0" ]; then
+                  DEPLOYMENT_MESSAGE="Apex tests failed: **$TESTNUMFAILURES** failure(s) out of $NUMTESTSRUN tests."
+              else
+                  DEPLOYMENT_MESSAGE="Deployment failed for an unknown reason. Check raw JSON."
+              fi
+          fi
+          
+          # --- 3. Write Markdown Summary Header ---
+          
+          echo "# $STATUS_ICON $STATUS_TITLE" >> $SUMMARY_FILE
+          echo "---" >> $SUMMARY_FILE
+          echo "$DEPLOYMENT_MESSAGE" >> $SUMMARY_FILE
+          echo "" >> $SUMMARY_FILE
+          
+          # --- 4. Write Metrics Table ---
+          
+          echo "### 📊 Core Metrics" >> $SUMMARY_FILE
+          echo "| Metric | Value |" >> $SUMMARY_FILE
+          echo "| :--- | :---: |" >> $SUMMARY_FILE
+          echo "| Components Processed | **$NUMBERCOMPONENTSTOTAL** |" >> $SUMMARY_FILE
+          echo "| Component Errors | **$NUMBERCOMPONENTERRORS** |" >> $SUMMARY_FILE
+          echo "| Tests Run | **$NUMTESTSRUN** |" >> $SUMMARY_FILE
+          echo "| Test Failures | **$TESTNUMFAILURES** |" >> $SUMMARY_FILE
+          echo "| Salesforce Job ID | `$JOBID` |" >> $SUMMARY_FILE
+          echo "" >> $SUMMARY_FILE
+          
+          # --- 5. Write Detailed Errors Section ---
+          
+          if [ "$SUCCESS" = "false" ] || [ "$FAILEDPREDEPLOY" != "0" ]; then
+              echo "### 🚨 Breakdown of Failures" >> $SUMMARY_FILE
+              
+              # A. Pre-Deployment Failure (e.g., invalid connection/manifest)
+              if [ "$JOBID" = "N/A" ] && [ "$FAILEDPREDEPLOY" != "0" ]; then
+                  echo "The deployment command exited with status code $FAILEDPREDEPLOY. Review the job logs for the full command output." >> $SUMMARY_FILE
+                  
+              # B. Component Failures
+              elif [ "$NUMBERCOMPONENTERRORS" != "0" ]; then
+                  # Use jq to format the component failures list nicely in a code block
+                  echo "" >> $SUMMARY_FILE
+                  echo "<details><summary>Component Errors Details ($NUMBERCOMPONENTERRORS)</summary>" >> $SUMMARY_FILE
+                  echo "" >> $SUMMARY_FILE
+                  echo "\`\`\`" >> $SUMMARY_FILE
+                  jq -r '.result.details.componentFailures[] | "\(.fullName) (\(.componentType))\n Line \(.lineNumber): \(.problem)\n---"' "$DEPLOY_RESULT_JSON" >> $SUMMARY_FILE
+                  echo "\`\`\`" >> $SUMMARY_FILE
+                  echo "</details>" >> $SUMMARY_FILE
+                  
+              # C. Test Failures
+              elif [ "$TESTNUMFAILURES" != "0" ]; then
+                  # Use jq to format the test failures list nicely
+                  echo "" >> $SUMMARY_FILE
+                  echo "<details><summary>Apex Test Failures ($TESTNUMFAILURES)</summary>" >> $SUMMARY_FILE
+                  echo "" >> $SUMMARY_FILE
+                  echo "\`\`\`" >> $SUMMARY_FILE
+                  jq -r '.result.details.runTestResult.failures[] | "Test: \(.name) (\(.methodName))\n Message: \(.message)\n Stack: \(.stackTrace)\n---"' "$DEPLOY_RESULT_JSON" >> $SUMMARY_FILE
+                  echo "\`\`\`" >> $SUMMARY_FILE
+                  echo "</details>" >> $SUMMARY_FILE
+              fi
+              
+              echo "" >> $SUMMARY_FILE
+              echo "**Action Required:** Deployment failed. Please review the detailed logs and fix the reported errors." >> $SUMMARY_FILE
+              
+          fi
+          
+          echo "---" >> $SUMMARY_FILE
+          echo "[Download Raw deployResult.json Artifact]" >> $SUMMARY_FILE
+        shell: bash
+
       - name: 🎨Cobertura Summary
         # Ensure this step runs only if tests ran and produced the XML
         if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
