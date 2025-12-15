@@ -478,7 +478,7 @@ jobs:
         run: |
           # Define file paths and GitHub URLs
           COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
-          BASE_FILE_URL="${{ vars.GH_BASE_URL }}${{env.GITHUB_REF_NAME}}/"
+          BASE_FILE_URL="${{ vars.GH_BASE_URL }}${{ env.GITHUB_REF_NAME }}/"
       
           # -------------------------------------------------------------
           # 1. WRITE HEADER
