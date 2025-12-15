@@ -72,16 +72,32 @@ jobs:
           
       - name: 🔑 Initialize Pipeline
         run: |
-          DELTA_MODE="${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}"
+          # 🎯 FIX: No dollar sign on the left side, and no space around the equals sign.
+          # We are setting NEW shell variables here, NOT overriding existing environment variables.
+          
+          # Set COMPARE_WITH based on check-only
           COMPARE_WITH="${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}"
+          
+          # Set DELTA_MODE based on check-only (using the ternary operator)
+          DELTA_MODE="${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}"
+          
+          # Set TEST_LEVEL using the nested condition
           TEST_LEVEL="${{ inputs.test-level != '' && inputs.test-level || (inputs.check-only == true && vars.VAL_TEST_LEVEL || vars.DEP_TEST_LEVEL) }}"
+          
+          # Export these variables so they are available to subsequent commands
+          # (Optional, but good practice if you have more commands in this script)
+          echo "COMPARE_WITH=$COMPARE_WITH" >> $GITHUB_ENV
+          echo "DELTA_MODE=$DELTA_MODE" >> $GITHUB_ENV
+          echo "TEST_LEVEL=$TEST_LEVEL" >> $GITHUB_ENV
+          
           echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
           echo "DELTA MODE: $DELTA_MODE"
           echo "COMPARE WITH: $COMPARE_WITH"
+          echo "TEST LEVEL: $TEST_LEVEL"
+          
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
-          sf plugins 
-          #set safe directory to make sure the repo is a git rep, otherwise will fail when we use git command.
+          sf plugins
           git config --global --add safe.directory $PWD
         shell: bash
           
