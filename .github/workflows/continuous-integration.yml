@@ -218,6 +218,7 @@ jobs:
         # in your 'Calculate Delta' step.
         if: ${{ steps.calculate_delta.outputs.noChanges == 'false' }}
         run: |
+          OPTIONS=" -g --wait 666 --json"
           predestructivepath="${{ vars.PRE_DESTRUCTIVE_XML_PATH }}"
           postdestructivepath="${{ vars.POST_DESTRUCTIVE_XML_PATH }}"
           
@@ -271,8 +272,7 @@ jobs:
             -x delta/package.xml \
             -l $TEST_LEVEL \
             $TESTCLASSES \
-            $OPTIONS \
-            -g --wait 666 --json > deployResult.json
+            $OPTIONS > deployResult.json
             
           # Output the result
           cat deployResult.json | jq 
