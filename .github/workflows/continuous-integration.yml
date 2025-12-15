@@ -280,20 +280,37 @@ jobs:
       
         shell: bash
 
-      - name: 📈 Publish Code Coverage Report
-        # This step only runs if tests were executed (e.g., test level was not NoTestRun)
-        if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
-        uses: nareddy-rajani/cobertura-action@v2.2
-        with:
-          # 🎯 Adjust this path to match exactly where your SFDX command places the file.
-          path: testresults/apex/cobertura-coverage.xml
-          # Optional: Display the results in the job summary (highly recommended)
-          summary: true
-          # Optional: If you want to comment on the Pull Request (requires 'pull_request' trigger)
-          # The 'summary' option is sufficient for displaying it on the job page.
-          # comment: true 
-          # Optional: Set minimum coverage percentage to fail the step if too low
-          # fail-below: 80
+      - name: 📊 Write Coverage to Job Summary
+        run: |
+          # 🎯 Adjust this path
+          COVERAGE_FILE="testresults/apex/cobertura-coverage.xml"
+      
+          # Use grep to find the line with the coverage percentage, and sed/awk to extract it
+          # Cobertura stores coverage as 'line-rate' attribute on the <coverage> tag.
+          LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' "$COVERAGE_FILE")
+          
+          # Convert line-rate (0.0 to 1.0) to a percentage (e.g., 0.85 -> 85%)
+          # This requires floating point math, which is easier in awk/bc than standard bash.
+          COVERAGE_PCT=$(awk "BEGIN {printf \"%.2f\n\", $LINE_RATE * 100}")
+          
+          # -------------------------------------------------------------
+          # Write the summary using Markdown
+          # -------------------------------------------------------------
+          
+          # Start the summary content
+          echo "## 📊 Code Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Add a simple table
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Line Coverage** | **${COVERAGE_PCT}%** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Add a link to the full report artifact
+          echo "[View Full Cobertura XML Report Artifact]" >> $GITHUB_STEP_SUMMARY
+          
+        shell: bash
           
       - name: 📤 Publish Code Analyzer Report
         uses: actions/upload-artifact@v4
