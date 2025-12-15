@@ -70,7 +70,7 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: 🔑 Initialize Pipeline
+      - name: ⚙️ Initialize Pipeline
         run: |
           # Set COMPARE_WITH based on check-only
           COMPARE_WITH="${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}"
@@ -86,6 +86,35 @@ jobs:
           echo "COMPARE_WITH=$COMPARE_WITH" >> $GITHUB_ENV
           echo "DELTA_MODE=$DELTA_MODE" >> $GITHUB_ENV
           echo "TEST_LEVEL=$TEST_LEVEL" >> $GITHUB_ENV
+
+          # -----------------------------------------------------------------
+          # START: CREATE CONFIGURATION SUMMARY
+          # -----------------------------------------------------------------
+          
+          echo "## ⚙️ CI/CD Configuration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Input Value | Calculated Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :---: | :--- |" >> $GITHUB_STEP_SUMMARY
+          
+          # Workflow Inputs
+          echo "| **Target Environment** | `${{ inputs.target-env }}` | `${{ env.TARGET_ENV }}` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Mode | `${{ inputs.deployment-mode }}` | \`$DELTA_MODE\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Check Only (Validation)** | `${{ inputs.check-only }}` | `${{ inputs.check-only }}` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Level | `${{ inputs.test-level }}` | \`$TEST_LEVEL\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run Code Scanner | `${{ inputs.run-code-scanner }}` | N/A |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run Org Pre-Config | `${{ inputs.org-preconfig }}` | N/A |" >> $GITHUB_STEP_SUMMARY
+          
+          # Calculated Delta Variables
+          echo "| **Comparison Reference** | N/A | \`$COMPARE_WITH\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Output Directory | `${{ inputs.outputdir }}` | `${{ env.OUTPUT_DIR }}` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Class Regex | `${{ inputs.test-class-regex }}` | N/A |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Configuration established successfully. Starting pipeline execution..." >> $GITHUB_STEP_SUMMARY
+          
+          # -----------------------------------------------------------------
+          # END: CREATE CONFIGURATION SUMMARY
+          # -----------------------------------------------------------------
           
           echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
           echo "::notice title=JOB Information Tip::DEPLOYMENT MODE: $DEPLOYMENT_MODE %0A DELTA MODE: $DELTA_MODE %0A COMPARE WITH: $COMPARE_WITH %0A TEST LEVEL: $TEST_LEVEL"
