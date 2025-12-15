@@ -117,6 +117,7 @@ jobs:
         shell: bash
       # 2. Run Delta
       - name: 🧮 Calculate Delta
+        id: calculate_delta
         run: |
           # Use environment variables which are easier to read and less error-prone
           if [ "$DEPLOYMENT_MODE" = "FULL" ]
@@ -209,7 +210,74 @@ jobs:
             echo "codeScannerReportExists=false" >> $GITHUB_OUTPUT
           fi
         shell: bash
-        
+      # ... (After the 'Calculate Delta' step, which prepares the package.xml)
+
+      - name: 🚀 Salesforce Deployment
+        # Use an 'if' condition to ensure this step only runs if noChanges is false.
+        # We assume you set a step output or environment variable 'noChanges'
+        # in your 'Calculate Delta' step.
+        if: ${{ steps.calculate_delta.outputs.noChanges == 'false' }}
+        run: |
+          predestructivepath="${{ vars.PRE_DESTRUCTIVE_XML_PATH }}"
+          postdestructivepath="${{ vars.POST_DESTRUCTIVE_XML_PATH }}"
+          
+          # --- TEST CLASSES (Requires output from 'Calculate Delta' step if RunSpecifiedTests is used) ---
+          # Since you didn't define testClasses globally, we assume it's calculated in the delta step.
+          # For simplicity, we'll try to use the logic from your provided code:
+          TESTCLASSES=""
+          if [ "$TEST_LEVEL" = "RunSpecifiedTests" ]; then 
+            # Assuming 'testClasses' file was created by 'Calculate Delta'
+            if [ -f "testClasses" ]; then
+              input_string=$(cat testClasses)
+              IFS=',' read -ra values <<< "$input_string"
+              for value in "${values[@]}"; do
+                TESTCLASSES+="-t $value "
+              done
+            fi
+          fi
+          
+          # -----------------------------------------------------------
+          # 2. Re-apply Deployment Option Overrides
+          # -----------------------------------------------------------
+          
+          if [ "$CHECKONLY" = "true" ]; then
+              OPTIONS="$OPTIONS --dry-run"
+          fi
+          if [ -n "$predestructivepath" ] && [ -f "$predestructivepath" ]; then
+              OPTIONS="$OPTIONS --pre-destructive-changes $predestructivepath"
+          fi
+          if [ -n "$postdestructivepath" ] && [ -f "$postdestructivepath" ]; then
+              OPTIONS="$OPTIONS --post-destructive-changes $postdestructivepath"
+          fi
+          if [ "$TEST_LEVEL" = "RunSpecifiedTests" ] || [ "$TEST_LEVEL" = "RunLocalTests" ] ; then
+              OPTIONS="$OPTIONS --junit --results-dir testresults/apex --coverage-formatters cobertura"
+          fi
+          
+          echo "--- Initiating Deployment ---"
+          echo "Test Level: $TEST_LEVEL"
+          echo "Test Classes: $TESTCLASSES"
+          echo "Deployment Options: $OPTIONS"
+          
+          # -----------------------------------------------------------
+          # 3. Execute the SFDX Deployment Command
+          # -----------------------------------------------------------
+          
+          # Use the target-env input, the package.xml from the delta step,
+          # and all the calculated variables.
+          
+          # The command execution
+          sf project start deploy \
+            -o ${{ inputs.target-env }} \
+            -x delta/package.xml \
+            -l $TEST_LEVEL \
+            $TESTCLASSES \
+            $OPTIONS \
+            -g --wait 666 --json > deployResult.json
+            
+          # Output the result
+          cat deployResult.json | jq 
+      
+        shell: bash
       - name: 📤 Publish Code Analyzer Report
         uses: actions/upload-artifact@v4
         
