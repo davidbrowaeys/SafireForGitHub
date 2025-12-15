@@ -216,8 +216,10 @@ jobs:
         # Use an 'if' condition to ensure this step only runs if noChanges is false.
         # We assume you set a step output or environment variable 'noChanges'
         # in your 'Calculate Delta' step.
+        id: sfdeploy
         if: ${{ steps.calculate_delta.outputs.noChanges == 'false' }}
         run: |
+          echo "runTests=false" >> $GITHUB_OUTPUT
           OPTIONS=" -g --wait 666 --json"
           predestructivepath="${{ vars.PRE_DESTRUCTIVE_XML_PATH }}"
           postdestructivepath="${{ vars.POST_DESTRUCTIVE_XML_PATH }}"
@@ -252,6 +254,7 @@ jobs:
           fi
           if [ "$TEST_LEVEL" = "RunSpecifiedTests" ] || [ "$TEST_LEVEL" = "RunLocalTests" ] ; then
               OPTIONS="$OPTIONS --junit --results-dir testresults/apex --coverage-formatters cobertura"
+              echo "runTests=true" >> $GITHUB_OUTPUT
           fi
           
           echo "--- Initiating Deployment ---"
@@ -281,6 +284,7 @@ jobs:
         
       - name: Code Coverage Report
         uses: irongut/CodeCoverageSummary@v1.3.0
+        if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
         with:
           filename: testresults/**/coverage/cobertura.xml
           badge: true
