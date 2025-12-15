@@ -283,7 +283,7 @@ jobs:
       - name: 📊 Write Coverage to Job Summary
         run: |
           # 🎯 Adjust this path
-          COVERAGE_FILE="testresults/apex/cobertura-coverage.xml"
+          COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
       
           # Use grep to find the line with the coverage percentage, and sed/awk to extract it
           # Cobertura stores coverage as 'line-rate' attribute on the <coverage> tag.
