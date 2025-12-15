@@ -280,64 +280,88 @@ jobs:
       
         shell: bash
 
-      - name: 📊 Write Coverage to Job Summary
+      - name: 🎨 Cobertura Line-by-Line Report Summary
+        # Ensure this step runs only if tests ran and produced the XML
+        if: success() && hashFiles('testresults/apex/cobertura-coverage.xml')
         run: |
-          # 🎯 Adjust this path
-          COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
-      
-          # Use grep to find the line with the coverage percentage, and sed/awk to extract it
-          # Cobertura stores coverage as 'line-rate' attribute on the <coverage> tag.
-          LINE_RATE=$(grep -oP 'line-rate="\K[^"]+' "$COVERAGE_FILE")
+          COVERAGE_FILE="testresults/apex/cobertura-coverage.xml"
           
-          # Convert line-rate (0.0 to 1.0) to a percentage (e.g., 0.85 -> 85%)
-          # This requires floating point math, which is easier in awk/bc than standard bash.
+          # -------------------------------------------------------------
+          # 1. EXTRACT GLOBAL SUMMARY METRICS
+          # -------------------------------------------------------------
+          
+          # Use xmlstarlet to select the coverage node's attributes
+          # The xpath //coverage selects the root node.
+          SUMMARY_DATA=$(xmlstarlet sel -t \
+              -v '//coverage/@line-rate' -o ',' \
+              -v '//coverage/@lines-covered' -o ',' \
+              -v '//coverage/@lines-valid' \
+              "$COVERAGE_FILE")
+              
+          IFS=',' read -r LINE_RATE LINES_COVERED LINES_VALID <<< "$SUMMARY_DATA"
+          
+          # Convert line rate to percentage and determine emoji status
           COVERAGE_PCT=$(awk "BEGIN {printf \"%.2f\n\", $LINE_RATE * 100}")
           
-          # -------------------------------------------------------------
-          # Write the summary using Markdown
-          # -------------------------------------------------------------
-          
-          # Start the summary content
-          echo "## 📊 Code Coverage Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Add a simple table
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Line Coverage** | **${COVERAGE_PCT}%** |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Add a link to the full report artifact
-          echo "[View Full Cobertura XML Report Artifact]" >> $GITHUB_STEP_SUMMARY
-          
-        shell: bash
-
-      - name: 🛠️ Setup Pandoc
-        # This uses an external action to install the Pandoc binary on the Ubuntu runner.
-        uses: r-lib/actions/setup-pandoc@v2
-        
-      - name: 🔄 Convert Report to Markdown using Pandoc
-        run: |
-          INPUT_FILE="codeanalyzeroutput/code-scanner-results.html"
-          OUTPUT_FILE="codeanalyzeroutput/summary.md"
-          
-          if [ -f "$INPUT_FILE" ]; then
-              echo "Running Pandoc conversion on Ubuntu..."
-              pandoc \
-                -f html \
-                -t markdown \
-                "$INPUT_FILE" \
-                -o "$OUTPUT_FILE"
-              
-              # 3. Publish the Markdown Content to the GitHub Job Summary
-              echo "## 🛡️ Code Analyzer Report" >> $GITHUB_STEP_SUMMARY
-              echo "---" >> $GITHUB_STEP_SUMMARY
-              cat "$OUTPUT_FILE" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "_The full HTML report is available as a downloadable artifact._" >> $GITHUB_STEP_SUMMARY
+          if [ "$LINE_RATE" -ge 0.8 ]; then
+              STATUS_EMOJI="🟢 High"
+          elif [ "$LINE_RATE" -ge 0.5 ]; then
+              STATUS_EMOJI="🟡 Medium"
           else
-              echo "::warning title=Summary Missing::HTML report not found. Skipping Pandoc conversion."
+              STATUS_EMOJI="🔴 Low"
           fi
+          
+          # -------------------------------------------------------------
+          # 2. WRITE CREATIVE SUMMARY HEADER
+          # -------------------------------------------------------------
+          
+          echo "## 📈 Salesforce Code Coverage Report: $STATUS_EMOJI" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          
+          # Display overall metrics in a clear, single line
+          echo "### Total Coverage: **${COVERAGE_PCT}%**" >> $GITHUB_STEP_SUMMARY
+          echo "Summary: **$LINES_COVERED** covered out of **$LINES_VALID** total lines." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # -------------------------------------------------------------
+          # 3. EXTRACT AND FORMAT LINE-BY-LINE DETAIL
+          # -------------------------------------------------------------
+          
+          echo "### 🔍 Line Detail for Changes" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | File/Class | Line | Hits |" >> $GITHUB_STEP_SUMMARY
+          echo "| :---: | :--- | :---: | :---: |" >> $GITHUB_STEP_SUMMARY
+          
+          # Use xmlstarlet to extract data for every <line> tag.
+          # We'll use multiple passes to get the parent class filename and the line data.
+          xmlstarlet sel -t \
+              -m '//class' \
+              -v 'concat(./@filename, "|")' \
+              -m 'lines/line' \
+              -v 'concat(./@number, "|", ./@hits)' -o $'\n' \
+              "$COVERAGE_FILE" |
+          
+          # Read the output line by line for formatting
+          while IFS='|' read -r FILENAME LINENUM HITS; do
+              if [ -n "$FILENAME" ] && [ "$LINENUM" -gt 0 ]; then
+                  
+                  # Determine status based on hits
+                  if [ "$HITS" -eq 0 ]; then
+                      STATUS="🔴 Missed"
+                  else
+                      STATUS="✅ Covered"
+                  fi
+                  
+                  # Extract the class name from the filename for display
+                  # Example: force-app/.../MyApexClass.cls -> MyApexClass
+                  CLASS_NAME=$(basename "$FILENAME" .cls)
+                  
+                  # Print the formatted Markdown table row
+                  echo "| $STATUS | **$CLASS_NAME** | L$LINENUM | $HITS |" >> $GITHUB_STEP_SUMMARY
+              fi
+          done
+          
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          
         shell: bash
           
       - name: 📤 Publish Code Analyzer Report
