@@ -148,7 +148,7 @@ jobs:
             # Check if package.xml contains actual metadata members
             if ! grep -q '<members>' "$OUTPUT_DIR/package.xml"; then
               echo "No changes detected. Skipping deployment."
-              echo "::set-output name=noChanges::true"
+              echo "noChanges=true" >> $GITHUB_OUTPUT
               exit 0
             fi
 
@@ -161,7 +161,7 @@ jobs:
               sf dxb source fetchtest -x $OUTPUT_DIR/package.xml -t $CHANGE_DETECTION_TYPE --test-class-name-regex $TEST_CLASS_REGEX -d . > testClasses    
               cat testClasses
             fi
-            echo "::set-output name=noChanges::false" # Changes found, proceed
+            echo "noChanges=false" >> $GITHUB_OUTPUT
 
           fi
         shell: bash
