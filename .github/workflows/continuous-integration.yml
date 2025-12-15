@@ -282,7 +282,7 @@ jobs:
 
       - name: 🎨 Cobertura Line-by-Line Report Summary
         # Ensure this step runs only if tests ran and produced the XML
-        if: success() && hashFiles('testresults/apex/cobertura-coverage.xml')
+        if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
         run: |
           COVERAGE_FILE="testresults/apex/cobertura-coverage.xml"
           
