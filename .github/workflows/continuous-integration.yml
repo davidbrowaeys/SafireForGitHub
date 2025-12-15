@@ -93,21 +93,18 @@ jobs:
           
           echo "## ⚙️ CI/CD Configuration Summary" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "| Setting | Input Value | Calculated Value |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :---: | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
           
           # Workflow Inputs
-          echo "| **Target Environment** | `${{ inputs.target-env }}` | `${{ env.TARGET_ENV }}` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Deployment Mode | `${{ inputs.deployment-mode }}` | \`$DELTA_MODE\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Check Only (Validation)** | `${{ inputs.check-only }}` | `${{ inputs.check-only }}` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Level | `${{ inputs.test-level }}` | \`$TEST_LEVEL\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Run Code Scanner | `${{ inputs.run-code-scanner }}` | N/A |" >> $GITHUB_STEP_SUMMARY
-          echo "| Run Org Pre-Config | `${{ inputs.org-preconfig }}` | N/A |" >> $GITHUB_STEP_SUMMARY
-          
-          # Calculated Delta Variables
-          echo "| **Comparison Reference** | N/A | \`$COMPARE_WITH\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Output Directory | `${{ inputs.outputdir }}` | `${{ env.OUTPUT_DIR }}` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Class Regex | `${{ inputs.test-class-regex }}` | N/A |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Environment** | ${{ inputs.target-env }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Mode | ${{ inputs.deployment-mode }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Delta Mode | $DELTA_MODE |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compare With | \`$COMPARE_WITH\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Check Only (Validation)** | ${{ inputs.check-only }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Level | $TEST_LEVEL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run Code Scanner | ${{ inputs.run-code-scanner }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run Org Pre-Config ${{ inputs.org-preconfig }} |" >> $GITHUB_STEP_SUMMARY
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Configuration established successfully. Starting pipeline execution..." >> $GITHUB_STEP_SUMMARY
