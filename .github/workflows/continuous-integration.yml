@@ -77,7 +77,7 @@ jobs:
         run: |
           echo "DEPLOYMENT MODE: $DEPLOYMENT_MODE"
           echo "DELTA MODE: $DELTA_MODE"
-          echo "DELTA MODE: $DELTA_MODE"
+          echo "COMPARE WITH: $COMPARE_WITH"
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
           sf plugins 
