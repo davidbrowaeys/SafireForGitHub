@@ -280,99 +280,101 @@ jobs:
       
         shell: bash
 
-      - name: 🎨 Detailed Cobertura Line-by-Line Report Summary
+      - name: 🎨Cobertura Summary
         # Ensure this step runs only if tests ran and produced the XML
         if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
         run: |
-          # 🎯 Adjust this path
+          # Define file paths and GitHub URLs
           COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
-          cat testresults/apex/coverage/cobertura.xml
+          
+          # Construct the base URL for the file browser, pointing to the tested commit
+          REPO_URL="${{ env.GITHUB_SERVER_URL }}/${{ env.GITHUB_REPOSITORY }}"
+          BASE_FILE_URL="${REPO_URL}/blob/${{ env.GITHUB_SHA }}/"
+      
           # -------------------------------------------------------------
-          # 1. EXTRACT GLOBAL SUMMARY METRICS
+          # 1. WRITE HEADER
           # -------------------------------------------------------------
           
-          # Extract global coverage data (line-rate, lines-covered, lines-valid)
-          # Using 'grep' and 'awk' to pull attributes from the <coverage> tag
+          # Extract global coverage data for the header (as before)
           SUMMARY_DATA=$(grep -oP '<coverage [^>]*>' "$COVERAGE_FILE" | head -1)
-          
           LINE_RATE=$(echo "$SUMMARY_DATA" | grep -oP 'line-rate="\K[^"]+')
-          LINES_COVERED=$(echo "$SUMMARY_DATA" | grep -oP 'lines-covered="\K[^"]+')
-          LINES_VALID=$(echo "$SUMMARY_DATA" | grep -oP 'lines-valid="\K[^"]+')
-          
-          # Convert line rate to percentage and determine emoji status
           COVERAGE_PCT=$(awk "BEGIN {printf \"%.2f\n\", $LINE_RATE * 100}")
           
-          if [ "$LINE_RATE" = "" ]; then # Handle case where file is empty or missing data
-              echo "::error title=Coverage Report Error::Failed to extract line-rate from Cobertura XML."
-              exit 1
-          fi
-          
-          if [ "$LINES_VALID" -eq 0 ]; then
-              STATUS_EMOJI="⚪ N/A"
-          elif [ "$LINE_RATE" -ge 0.8 ]; then
-              STATUS_EMOJI="🟢 High"
-          elif [ "$LINE_RATE" -ge 0.5 ]; then
-              STATUS_EMOJI="🟡 Medium"
-          else
-              STATUS_EMOJI="🔴 Low"
-          fi
-          
-          # -------------------------------------------------------------
-          # 2. WRITE CREATIVE SUMMARY HEADER
-          # -------------------------------------------------------------
-          
-          echo "## 📊 Apex Code Coverage Report: $STATUS_EMOJI" >> $GITHUB_STEP_SUMMARY
+          # Write header
+          echo "## 🎯 File-Level Code Coverage Summary (${COVERAGE_PCT}%)" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           
-          echo "### Total Coverage: **${COVERAGE_PCT}%**" >> $GITHUB_STEP_SUMMARY
-          echo "Summary: **$LINES_COVERED** covered out of **$LINES_VALID** total lines." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          # Define the new table structure
+          echo "| File | Line Coverage | 🔴 Uncovered Lines |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :---: | :--- |" >> $GITHUB_STEP_SUMMARY
           
           # -------------------------------------------------------------
-          # 3. EXTRACT AND FORMAT LINE-BY-LINE DETAIL
+          # 2. EXTRACT AND FORMAT FILE-LEVEL DETAIL (The complex part)
           # -------------------------------------------------------------
           
-          echo "### 🔍 Line Detail" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | File/Class | Line | Hits |" >> $GITHUB_STEP_SUMMARY
-          echo "| :---: | :--- | :---: | :---: |" >> $GITHUB_STEP_SUMMARY
+          # AWK script to process the XML:
+          # 1. Finds the filename and line-rate from the <class> tag.
+          # 2. Iterates through subsequent <line> tags to find 'hits="0"'.
+          # 3. Prints one formatted Markdown row per file.
           
-          # Use 'grep' to find all lines with hit information and pipe to 'awk' for formatting.
-          # We look for the filename from the preceding <class> tag and line data from <line> tags.
-          
-          # Awk script to parse context (filename) and data (line/hits)
-          # This AWK block handles line-by-line parsing:
-          # 1. Finds the filename from the <class> tag and stores it.
-          # 2. Finds the <line> tags and uses the stored filename to create the output row.
-          awk '
-          /<class / {
-              # Extract the filename attribute from the <class> tag
-              match($0, /filename="[^"]+"/)
-              FILENAME=substr($0, RSTART+10, RLENGTH-11)
-              # Extract only the class name (e.g., MyApexClass.cls -> MyApexClass)
-              gsub(/\.[^.]*$/, "", FILENAME) 
-              gsub(/.*\/+/, "", FILENAME) # Remove path leading to class name
-          }
-          /<line / {
-              # Extract the line number and hits attributes from the <line> tag
-              match($0, /number="[^"]+"/)
-              LINENUM=substr($0, RSTART+8, RLENGTH-9)
-              match($0, /hits="[^"]+"/)
-              HITS=substr($0, RSTART+6, RLENGTH-7)
-              
-              # Determine status and set emoji
-              if (HITS == 0) {
-                  STATUS="🔴 Missed"
-              } else {
-                  STATUS="✅ Covered"
+          awk -v BASE_URL="$BASE_FILE_URL" '
+          # Initialize variables for each file block
+          BEGIN { LINES_MISSED=""; FILENAME=""; CLASS_RATE=""; }
+      
+          # Pattern match for the end of a class block, and print the results
+          /<class name=/ { 
+              # Before processing the new class, check if the previous one had any missed lines
+              if (FILENAME != "" && LINES_MISSED != "") {
+                  # Format the output table row (only if missed lines exist)
+                  printf "| [%s](%s) | **%s%%** | %s |\n", CLASS_NAME, FILE_HYPERLINK, CLASS_RATE_PCT, LINES_MISSED | "cat >> $GITHUB_STEP_SUMMARY"
               }
               
-              # Print the formatted Markdown table row to STDOUT (which is redirected to $GITHUB_STEP_SUMMARY)
-              print "| " STATUS " | **" FILENAME "** | L" LINENUM " | " HITS " |"
-          }' "$COVERAGE_FILE" >> $GITHUB_STEP_SUMMARY
-          
+              # Reset variables for the new class
+              LINES_MISSED="";
+              
+              # Extract filename (full relative path)
+              match($0, /filename="[^"]+"/)
+              FULL_PATH=substr($0, RSTART+10, RLENGTH-11)
+              
+              # Extract class name (for display)
+              match($0, /name="[^"]+"/)
+              CLASS_NAME=substr($0, RSTART+6, RLENGTH-7)
+              
+              # Extract class line-rate (for percentage column)
+              match($0, /line-rate="[^"]+"/)
+              CLASS_RATE=substr($0, RSTART+11, RLENGTH-12)
+              
+              # Calculate percentage and file link
+              CLASS_RATE_PCT = sprintf("%.0f", CLASS_RATE * 100);
+              FILE_HYPERLINK = BASE_URL FULL_PATH;
+      
+              # Store the current filename and rate for the next print cycle
+              FILENAME=FULL_PATH;
+          }
+      
+          # Pattern match for uncovered lines (hits="0")
+          /<line / && /hits="0"/ {
+              # Extract line number
+              match($0, /number="[^"]+"/)
+              LINENUM=substr($0, RSTART+8, RLENGTH-9)
+              
+              # Append line number to the list
+              if (LINES_MISSED == "") {
+                  LINES_MISSED = LINENUM;
+              } else {
+                  LINES_MISSED = LINES_MISSED ", " LINENUM;
+              }
+          }
+      
+          # End of file: process the very last class block
+          END {
+              if (FILENAME != "" && LINES_MISSED != "") {
+                   printf "| [%s](%s) | **%s%%** | %s |\n", CLASS_NAME, FILE_HYPERLINK, CLASS_RATE_PCT, LINES_MISSED | "cat >> $GITHUB_STEP_SUMMARY"
+              }
+          }' "$COVERAGE_FILE"
+      
           echo "---" >> $GITHUB_STEP_SUMMARY
-          
-          # Add a link to the full report artifact
+          echo "*Files with 100% coverage are not listed in the detail section.*" >> $GITHUB_STEP_SUMMARY
           echo "[Download Full Cobertura XML Report Artifact]" >> $GITHUB_STEP_SUMMARY
         shell: bash
           
