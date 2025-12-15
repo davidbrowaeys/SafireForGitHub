@@ -311,6 +311,26 @@ jobs:
           echo "[View Full Cobertura XML Report Artifact]" >> $GITHUB_STEP_SUMMARY
           
         shell: bash
+
+      - name: 🔄 Convert HTML Report to Markdown
+        run: |
+          # Ensure npx is available (usually is on standard runners)
+          
+          # Define the input and output paths
+          INPUT_FILE="codeanalyzeroutput/code-scanner-results.html"
+          OUTPUT_FILE="codeanalyzeroutput/summary.md"
+      
+          if [ -f "$INPUT_FILE" ]; then
+              npx html-to-markdown-cli --input "$INPUT_FILE" --output "$OUTPUT_FILE"
+              
+              # Optionally, print the resulting markdown to the job summary
+              echo "## 🛡️ Code Analyzer Summary" >> $GITHUB_STEP_SUMMARY
+              echo "---" >> $GITHUB_STEP_SUMMARY
+              cat "$OUTPUT_FILE" >> $GITHUB_STEP_SUMMARY
+          else
+              echo "HTML report not found, skipping Markdown conversion."
+          fi
+        shell: bash
           
       - name: 📤 Publish Code Analyzer Report
         uses: actions/upload-artifact@v4
