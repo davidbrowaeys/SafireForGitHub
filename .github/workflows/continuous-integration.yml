@@ -407,6 +407,70 @@ jobs:
           echo "---" >> $SUMMARY_FILE
           echo "[Download Raw deployResult.json Artifact]" >> $SUMMARY_FILE
         shell: bash
+        
+      - name: 🧹 Coverage Cleanup and Checks
+        # Only run if tests were executed successfully (based on the previous step's output)
+        if: ${{ steps.sfdeploy.outputs.runTests == 'true' }}
+        run: |
+          # Define file paths
+          COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
+          JUNIT_FILE="testresults/apex/junit/junit.xml"
+          
+          # Map optional inputs (assuming they exist in your workflow_call inputs)
+          MINCODECOVERAGE="${{ vars.MIN_CODE_COVERAGE }}"
+          CHECKPERFORMANCE="${{ vars.CHECKPERFORMANCE }}"
+          
+          # Map other required inputs
+          CHECKONLY="${{ inputs.check-only }}"
+          
+          # Check if both report files exist before proceeding
+          if [ -e "$COVERAGE_FILE" ] && [ -e "$JUNIT_FILE" ]; then
+              
+              echo "--- Starting Apex Report Cleanup ---"
+              echo "sf dxb apex coverage cleanup -f $COVERAGE_FILE"
+              echo "Update code coverage cobertura file to align apex class file path..."
+              
+              # Displaying the content BEFORE cleanup (for debugging/logs)
+              # We limit the output to prevent log spam if the file is huge
+              echo "--- Cobertura XML before cleanup (first 20 lines) ---"
+              head -n 20 "$COVERAGE_FILE"
+              echo "--------------------------------------------------------"
+              
+              # 1. Clean up the Cobertura XML file paths
+              sf dxb apex coverage cleanup -f "$COVERAGE_FILE"
+              
+              # -------------------------------------------------------------
+              # 2. Check Minimum Code Coverage
+              # -------------------------------------------------------------
+              
+              # The coverage check should only be run if mincodecoverage is provided AND it's a validation run (Check Only)
+              if [ -n "$MINCODECOVERAGE" ] && [ "$CHECKONLY" = "true" ]; then
+                  echo "--- Verify Minimum Apex Code Coverage: $MINCODECOVERAGE% ---"
+                  echo "sf dxb apex coverage check -f $COVERAGE_FILE -c $MINCODECOVERAGE"
+                  
+                  # This command will fail the step if coverage is too low
+                  sf dxb apex coverage check -f "$COVERAGE_FILE" -c "$MINCODECOVERAGE"
+              fi
+              
+              # -------------------------------------------------------------
+              # 3. Check Performance (JUNIT)
+              # -------------------------------------------------------------
+              
+              # The performance check runs if the input is provided
+              if [ -n "$CHECKPERFORMANCE" ]; then
+                  # Assuming CHECKPERFORMANCE provides the max time (e.g., "3" for 3 seconds)
+                  MAX_TIME_SECONDS="$CHECKPERFORMANCE"
+                  echo "--- Verify Test Performance (Max $MAX_TIME_SECONDS seconds) ---"
+                  echo "sf dxb junit check -p $JUNIT_FILE -t $MAX_TIME_SECONDS"
+                  
+                  # This command will fail the step if any test takes longer than the threshold
+                  sf dxb junit check -p "$JUNIT_FILE" -t "$MAX_TIME_SECONDS"
+              fi
+              
+          else
+              echo "Skipping coverage cleanup/checks: Required files ($COVERAGE_FILE or $JUNIT_FILE) not found."
+          fi
+        shell: bash
 
       - name: 🎨Cobertura Summary
         # Ensure this step runs only if tests ran and produced the XML
