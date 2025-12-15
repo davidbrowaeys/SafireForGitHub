@@ -280,7 +280,7 @@ jobs:
       
         shell: bash
 
-      - name: Deployment Result
+      - name: 🎯 Deployment Result
         if: '!cancelled()'
         run: | 
           # Define the output file for the GitHub Job Summary
