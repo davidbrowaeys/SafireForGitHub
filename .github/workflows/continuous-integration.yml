@@ -363,7 +363,7 @@ jobs:
           echo "| Component Errors | **$NUMBERCOMPONENTERRORS** |" >> $SUMMARY_FILE
           echo "| Tests Run | **$NUMTESTSRUN** |" >> $SUMMARY_FILE
           echo "| Test Failures | **$TESTNUMFAILURES** |" >> $SUMMARY_FILE
-          echo "| Salesforce Job ID | `$JOBID` |" >> $SUMMARY_FILE
+          echo "| Salesforce Job ID | $JOBID |" >> $SUMMARY_FILE
           echo "" >> $SUMMARY_FILE
           
           # --- 5. Write Detailed Errors Section ---
@@ -410,6 +410,7 @@ jobs:
       - name: 🧹 Coverage Cleanup and Checks
         # Only run if tests were executed successfully (based on the previous step's output)
         if: ${{ always() && steps.sfdeploy.outputs.runTests == 'true' }}
+        id: codecoveragecheck
         run: |
           # Define file paths
           COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
@@ -454,7 +455,6 @@ jobs:
               # -------------------------------------------------------------
               # 3. Check Performance (JUNIT)
               # -------------------------------------------------------------
-              
               # The performance check runs if the input is provided
               if [ -n "$CHECKPERFORMANCE" ]; then
                   # Assuming CHECKPERFORMANCE provides the max time (e.g., "3" for 3 seconds)
