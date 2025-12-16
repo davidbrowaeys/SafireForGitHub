@@ -331,12 +331,22 @@ jobs:
               STATUS_TITLE="Deployment Failed Before Start"
               DEPLOYMENT_MESSAGE="The deployment could not start due to a system error (e.g., login failure, invalid manifest)."
           elif [ "$SUCCESS" = "true" ]; then
-              STATUS_ICON="✅ SUCCESS"
-              STATUS_TITLE="Deployment Succeeded"
-              DEPLOYMENT_MESSAGE="All components and required tests passed successfully."
+              STATUS_ICON="✅"
+               if [ "$CHECKONLY" = "true" ]; then
+                  STATUS_TITLE="Validation Failed"
+                  DEPLOYMENT_MESSAGE="Validation failed. Changes could not be deployed to the target environment."
+              else
+                  STATUS_TITLE="Deployment Failed"
+                  DEPLOYMENT_MESSAGE="Deployment failed. The target environment was not updated. Review logs for errors."
+              fi
           elif [ "$SUCCESS" = "false" ]; then
-              STATUS_ICON="🛑 FAILED"
-              STATUS_TITLE="Deployment Failed"
+              STATUS_ICON="🛑"
+              # Ternary-like logic for FAILURE TITLE:
+              if [ "$CHECK_MODE_IS_TRUE" = "true" ]; then
+                  STATUS_TITLE="Validation Failed"
+              else
+                  STATUS_TITLE="Deployment Failed"
+              fi
               
               if [ "$NUMBERCOMPONENTERRORS" != "0" ]; then
                   DEPLOYMENT_MESSAGE="Component deployment failed with **$NUMBERCOMPONENTERRORS** error(s) out of $NUMBERCOMPONENTSTOTAL components."
