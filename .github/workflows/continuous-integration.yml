@@ -45,6 +45,11 @@ on:
         required: false
         type: boolean
         default: false # Set a default value
+      run-data-import: 
+        description: Run data import
+        required: false 
+        type: boolean 
+        default: false
     secrets: 
       AUTH_URL:
         required: true
@@ -331,22 +336,12 @@ jobs:
               STATUS_TITLE="Deployment Failed Before Start"
               DEPLOYMENT_MESSAGE="The deployment could not start due to a system error (e.g., login failure, invalid manifest)."
           elif [ "$SUCCESS" = "true" ]; then
-              STATUS_ICON="✅"
-               if [ "$CHECKONLY" = "true" ]; then
-                  STATUS_TITLE="Validation Failed"
-                  DEPLOYMENT_MESSAGE="Validation failed. Changes could not be deployed to the target environment."
-              else
-                  STATUS_TITLE="Deployment Failed"
-                  DEPLOYMENT_MESSAGE="Deployment failed. The target environment was not updated. Review logs for errors."
-              fi
+              STATUS_ICON="✅ SUCCESS"
+              STATUS_TITLE="Deployment Succeeded"
+              DEPLOYMENT_MESSAGE="All components and required tests passed successfully."
           elif [ "$SUCCESS" = "false" ]; then
-              STATUS_ICON="🛑"
-              # Ternary-like logic for FAILURE TITLE:
-              if [ "$CHECK_MODE_IS_TRUE" = "true" ]; then
-                  STATUS_TITLE="Validation Failed"
-              else
-                  STATUS_TITLE="Deployment Failed"
-              fi
+              STATUS_ICON="🛑 FAILED"
+              STATUS_TITLE="Deployment Failed"
               
               if [ "$NUMBERCOMPONENTERRORS" != "0" ]; then
                   DEPLOYMENT_MESSAGE="Component deployment failed with **$NUMBERCOMPONENTERRORS** error(s) out of $NUMBERCOMPONENTSTOTAL components."
@@ -574,6 +569,42 @@ jobs:
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*Files with 100% coverage are not listed in the detail section.*" >> $GITHUB_STEP_SUMMARY
           echo "[Download Full Cobertura XML Report Artifact]" >> $GITHUB_STEP_SUMMARY
+        shell: bash
+
+        # 8. Data Import (New Conditional Step)
+      - name: 📥 Run Data Import
+        # CRITICAL IF: Only run if it was a successful *deployment* (not validation)
+        if: ${{ inputs.run-data-import == true &&inputs.check-only == false && success() }}
+        
+        run: |
+          # The variable is a repository/environment variable, accessed via the `vars` context
+          DATA_DEF_FILE="${{ vars.DATA_DEF_FILE }}"
+          
+          if [ -z "$DATA_DEF_FILE" ]; then
+            echo "::warning::vars.DATA_DEF_FILE is empty. Skipping data import."
+            exit 0
+          fi
+          
+          echo "--- Starting Data Import ---"
+          echo "Using data definition file: $DATA_DEF_FILE"
+          
+          # Execute the sf dxb data import command
+          # Note: The target org (-o) is already the default due to the 'sf org login' step
+          sf dxb data import -f "$DATA_DEF_FILE" -d data
+          
+          echo "Data Import complete."
+
+        shell: bash
+
+        # Community Publish (New Step - Simplified access)
+      - name: 🌐 Publish Experience Cloud Community
+        # Only run if CHECK_ONLY is 'false' (it's a real deployment)
+        if: ${{ inputs.check-only ==  false }}
+        
+        run: |
+          echo "Publishing Experience Cloud site for target: ${{ env.TARGET_ENV }}"
+          sf dxb community publish
+
         shell: bash
           
       - name: 📤 Publish Code Analyzer Report
