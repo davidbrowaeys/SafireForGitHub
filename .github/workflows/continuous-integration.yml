@@ -64,7 +64,6 @@ jobs:
       OUTPUT_DIR: ${{ inputs.outputdir }}
       CHANGE_DETECTION_TYPE: ${{ inputs.change-detection-type }}
       TEST_CLASS_REGEX: ${{ inputs.test-class-regex }}
-      SF_AUTH_URL: ${{ secrets.AUTH_URL }}
 
     steps:
     
@@ -124,6 +123,8 @@ jobs:
           
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
       - name: 🔑 Salesforce Login
+        env:
+            SF_AUTH_URL: ${{ secrets.AUTH_URL }}
         run: |
           if [ -z "$SF_AUTH_URL" ]; then
               # Use single quotes inside the double-quoted string, or escape them
