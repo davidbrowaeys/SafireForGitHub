@@ -64,6 +64,7 @@ jobs:
       OUTPUT_DIR: ${{ inputs.outputdir }}
       CHANGE_DETECTION_TYPE: ${{ inputs.change-detection-type }}
       TEST_CLASS_REGEX: ${{ inputs.test-class-regex }}
+      SF_AUTH_URL: ${{ secrets.AUTH_URL }}
 
     steps:
     
@@ -124,7 +125,7 @@ jobs:
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
       - name: 🔑 Salesforce Login
         run: |
-          AUTH_URL_VALUE="${{ secrets.AUTH_URL }}"
+          AUTH_URL_VALUE=$SF_AUTH_URL
           
           if [ -z "$AUTH_URL_VALUE" ]; then
             echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the 'SFDX_AUTH_URL' key."
