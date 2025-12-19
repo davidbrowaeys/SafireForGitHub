@@ -50,6 +50,11 @@ on:
         required: false 
         type: boolean 
         default: false
+      auto-publish-communities: 
+        description: automatically publish all experience cloud communities
+        required: false 
+        type: boolean 
+        default: false
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
@@ -597,7 +602,7 @@ jobs:
         # Community Publish (New Step - Simplified access)
       - name: 🌐 Publish Experience Cloud Community
         # Only run if CHECK_ONLY is 'false' (it's a real deployment)
-        if: ${{ inputs.check-only ==  false }}
+        if: ${{ inputs.check-only ==  false && inputs.auto-publish-communities ==  true }}
         
         run: |
           echo "Publishing Experience Cloud site for target: ${{ env.TARGET_ENV }}"
