@@ -126,13 +126,14 @@ jobs:
       - name: 🔑 Salesforce Login
         run: |
           if [ -z "$SF_AUTH_URL" ]; then
-            echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the "AUTH_URL' key in your environment settings."
-            exit 1
+              # Use single quotes inside the double-quoted string, or escape them
+              echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the 'AUTH_URL' key in your environment settings."
+              exit 1
           fi
-          echo "$SF_AUTH_URL"
+          
           echo "$SF_AUTH_URL" > credentials.txt
           # Use the environment variable $TARGET_ENV
-          sf org login sfdx-url -f credentials.txt -a $TARGET_ENV -s
+          sf org login sfdx-url -f credentials.txt -a "$TARGET_ENV" -s
         shell: bash
       # 2. Run Delta
       - name: 🧮 Calculate Delta
