@@ -50,9 +50,6 @@ on:
         required: false 
         type: boolean 
         default: false
-    secrets: 
-      AUTH_URL:
-        required: true
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
