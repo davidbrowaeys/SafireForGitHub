@@ -125,10 +125,10 @@ jobs:
       # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
       - name: 🔑 Salesforce Login
         run: |
-          AUTH_URL_VALUE=$SF_AUTH_URL
+          AUTH_URL_VALUE="$SF_AUTH_URL"
           
           if [ -z "$AUTH_URL_VALUE" ]; then
-            echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the 'SFDX_AUTH_URL' key."
+            echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the "AUTH_URL' key in your environment settings."
             exit 1
           fi
           
