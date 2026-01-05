@@ -622,7 +622,7 @@ jobs:
 
       - name: 🧪 Run LWC JEST Tests
         if: ${{ inputs.runjest ==  true }}
-        uses: actions/lwc-jest-test@main
+        uses: actions/lwc-jest-test@v1
         with:
           runDeltaTest: ${{ inputs.deployment-mode == 'DELTA' }}
           deltaManifest: ${{ inputs.outputdir }}/package.xml
