@@ -267,6 +267,11 @@ jobs:
                 TESTCLASSES+="-t $value "
               done
             fi
+
+            if [ -z "$TESTCLASSES" ]; then
+                echo "⚠️ No test classes found. Downgrading TEST_LEVEL to NoTestRun."
+                TEST_LEVEL="NoTestRun"
+            fi
           fi
           
           # -----------------------------------------------------------
