@@ -1,0 +1,63 @@
+name: 'Salesforce LWC JEST Runner'
+description: 'Installs dependencies and runs LWC JEST tests with coverage'
+
+inputs:
+  failTaskOnFailedTests:
+    description: 'Fail the action if tests fail'
+    required: false
+    default: 'false'
+  checkPerformance:
+    description: 'Verify LWC performance thresholds'
+    required: false
+    default: 'false'
+  deltaManifest:
+    description: 'Path to the delta package.xml'
+    required: false
+    default: 'delta/package.xml'
+  runDeltaTest:
+    description: 'If true, only run tests for components in the manifest'
+    required: false
+    default: 'false'
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Install JEST Dependencies"
+      shell: bash
+      run: npm install -D @salesforce/sfdx-lwc-jest jest-junit jest-environment-jsdom
+
+    - name: "Test LWC (Delta Mode)"
+      if: ${{ inputs.runDeltaTest == 'true' }}
+      shell: bash
+      run: |
+        hasLWC=$(grep 'LightningComponentBundle' ${{ inputs.deltaManifest }} || true)
+        if [ -n "$hasLWC" ]; then
+          sf dxb lwc test run --manifest ${{ inputs.deltaManifest }}
+        else
+          echo "No LWC components found in manifest. Skipping."
+        fi
+
+    - name: "Test All LWC"
+      if: ${{ inputs.runDeltaTest == 'false' }}
+      shell: bash
+      run: sf dxb lwc test run
+
+    - name: "Verify LWC Performance"
+      if: ${{ inputs.checkPerformance == 'true' }}
+      shell: bash
+      run: sf dxb junit check -p testresults/jest/junit/test-results-lwc.xml -t 0.5
+
+    - name: "Upload Artifacts"
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: lwc-test-results
+        path: testresults/jest/junit/test-results-lwc.xml
+
+    # Note: Composite actions can call other actions
+    - name: "Publish Test Results"
+      if: always()
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      with:
+        files: testresults/jest/junit/test-results-lwc.xml
+        action_fail: ${{ inputs.failTaskOnFailedTests }}
