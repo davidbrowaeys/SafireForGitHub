@@ -622,7 +622,7 @@ jobs:
 
       - name: 🧪 Run LWC JEST Tests
         if: ${{ inputs.runjest ==  true }}
-        uses: davidbrowaeys/SafireForGitHub/.github//actions/sfdx-lwc-test-run
+        uses: davidbrowaeys/SafireForGitHub/.github/actions/sfdx-lwc-test-run
         with:
           runDeltaTest: ${{ inputs.deployment-mode == 'DELTA' }}
           deltaManifest: ${{ inputs.outputdir }}/package.xml
