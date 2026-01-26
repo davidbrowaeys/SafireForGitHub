@@ -426,6 +426,7 @@ jobs:
           # Generate deployment report in markdown format
           # Paths adapted for Linux (Ubuntu runner)
           sf dxb deployment report \
+            -p ${{ inputs.outputdir }}/package.xml
             -a codeanalyzeroutput/code-scanner-results.html \
             -c \
             -d reports \
