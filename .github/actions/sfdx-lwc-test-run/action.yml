@@ -1,4 +1,3 @@
-//_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________//
 name: 'Salesforce LWC JEST Runner'
 description: 'Installs dependencies and runs LWC JEST tests with coverage'
 
@@ -49,4 +48,3 @@ runs:
       if: ${{ inputs.checkPerformance == 'true' }}
       shell: bash
       run: sf dxb junit check -p testresults/jest/junit/test-results-lwc.xml -t 0.5
-//__________________________GenAI: Generated code ends here______________________________//
