@@ -453,14 +453,30 @@ jobs:
               
               # Check if the manifest contains LWC components
               if grep -q 'LightningComponentBundle' "${{ inputs.outputdir }}/package.xml"; then
-                echo "LWC components found. Running delta tests..."
-                sf dxb lwc test run --manifest "${{ inputs.outputdir }}/package.xml"
+                echo "LWC components found. Extracting component names for delta tests..."
+                
+                # Extract LWC component names from package.xml
+                # The members are between <members> and </members> tags under LightningComponentBundle
+                LWC_COMPONENTS=$(grep -A 1000 '<name>LightningComponentBundle</name>' "${{ inputs.outputdir }}/package.xml" | \
+                  grep -B 1000 '</types>' | \
+                  grep '<members>' | \
+                  sed 's/.*<members>\(.*\)<\/members>.*/\1/' | \
+                  tr '\n' ' ' | \
+                  xargs)
+                
+                if [ -n "$LWC_COMPONENTS" ]; then
+                  echo "Running delta tests for components: $LWC_COMPONENTS"
+                  # Run sfdx-lwc-jest with component names as test path patterns
+                  npx sfdx-lwc-jest -- $LWC_COMPONENTS --silent --ci --bail=false
+                else
+                  echo "No LWC component names extracted. Skipping tests."
+                fi
               else
                 echo "No LWC components found in manifest. Skipping delta tests."
               fi
             else
               echo "Running tests for all LWC components..."
-              sf dxb lwc test run
+              npx sfdx-lwc-jest --silent --ci --bail=false
             fi
         shell: bash
           
