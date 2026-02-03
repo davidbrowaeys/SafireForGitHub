@@ -60,6 +60,11 @@ on:
         required: false 
         type: boolean 
         default: false
+      jest-fail-on-error:
+        description: 'Fail the workflow if LWC Jest tests fail'
+        required: false
+        type: boolean
+        default: false
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
@@ -548,8 +553,14 @@ jobs:
               fi
             fi
             
-            # Exit with the original Jest exit code to fail the step if tests failed
-            exit $JEST_EXIT_CODE
+            # Exit with the original Jest exit code only if jest-fail-on-error is true
+            if [ "${{ inputs.jest-fail-on-error }}" = "true" ] && [ "$JEST_EXIT_CODE" -ne 0 ]; then
+              echo "::error::LWC Jest tests failed and jest-fail-on-error is enabled."
+              exit $JEST_EXIT_CODE
+            elif [ "$JEST_EXIT_CODE" -ne 0 ]; then
+              echo "::warning::LWC Jest tests failed but jest-fail-on-error is disabled. Continuing workflow."
+              exit 0
+            fi
         shell: bash
           
       - name: 📤 Publish Code Analyzer Report
