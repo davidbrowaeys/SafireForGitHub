@@ -455,14 +455,26 @@ jobs:
               if grep -q 'LightningComponentBundle' "${{ inputs.outputdir }}/package.xml"; then
                 echo "LWC components found. Extracting component names for delta tests..."
                 
-                # Extract LWC component names from package.xml
-                # The members are between <members> and </members> tags under LightningComponentBundle
-                LWC_COMPONENTS=$(grep -A 1000 '<name>LightningComponentBundle</name>' "${{ inputs.outputdir }}/package.xml" | \
-                  grep -B 1000 '</types>' | \
-                  grep '<members>' | \
-                  sed 's/.*<members>\(.*\)<\/members>.*/\1/' | \
-                  tr '\n' ' ' | \
-                  xargs)
+                # Debug: Show the package.xml content
+                echo "--- Package.xml content ---"
+                cat "${{ inputs.outputdir }}/package.xml"
+                echo "--- End of package.xml ---"
+                
+                # Extract LWC component names from package.xml using awk
+                # This extracts all <members> content between LightningComponentBundle type tags
+                LWC_COMPONENTS=$(awk '
+                  /<types>/,/<\/types>/ {
+                    if (/<name>LightningComponentBundle<\/name>/) found=1
+                    if (found && /<members>/) {
+                      gsub(/.*<members>/, "")
+                      gsub(/<\/members>.*/, "")
+                      printf "%s ", $0
+                    }
+                    if (found && /<\/types>/) found=0
+                  }
+                ' "${{ inputs.outputdir }}/package.xml" | xargs)
+                
+                echo "Extracted LWC components: '$LWC_COMPONENTS'"
                 
                 if [ -n "$LWC_COMPONENTS" ]; then
                   echo "Running delta tests for components: $LWC_COMPONENTS"
