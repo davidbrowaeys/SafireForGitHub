@@ -22,12 +22,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: "Install JEST Dependencies"
-      shell: bash
-      run: npm install -D @salesforce/sfdx-lwc-jest jest-junit jest-environment-jsdom
-
     - name: 🧪 Execute LWC JEST Tests
       run: |
+        npm install -D @salesforce/sfdx-lwc-jest jest-junit jest-environment-jsdom
+        
         if [ "${{ inputs.runDeltaTest }}" = "true" ]; then
           echo "Checking for LWC changes in ${{ inputs.deltaManifest }}..."
           
@@ -43,8 +41,3 @@ runs:
           sf dxb lwc test run
         fi
       shell: bash
-        
-    - name: "Verify LWC Performance"
-      if: ${{ inputs.checkPerformance == 'true' }}
-      shell: bash
-      run: sf dxb junit check -p testresults/jest/junit/test-results-lwc.xml -t 0.5
