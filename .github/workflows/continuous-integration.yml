@@ -427,7 +427,7 @@ jobs:
           # Paths adapted for Linux (Ubuntu runner)
           sf dxb deployment report \
             -p ${{ inputs.outputdir }}/package.xml \
-            -a codeanalyzeroutput/code-scanner-results.html \
+            -a codeanalyzeroutput/code-scanner-results.csv \
             -c \
             -d reports \
             -f deployResult.json \
@@ -470,6 +470,6 @@ jobs:
         if: ${{ steps.code_analyzer.outputs.codeScannerReportExists == 'true' }}
         with:
           name: Code-Analyzer-Report-${{ inputs.target-env }}
-          path: codeanalyzeroutput/code-scanner-results.html
+          path: codeanalyzeroutput/code-scanner-results.csv
           
           retention-days: 7
