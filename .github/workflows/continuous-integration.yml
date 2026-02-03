@@ -445,12 +445,24 @@ jobs:
 
       - name: 🧪 Run LWC JEST Tests
         if: ${{ inputs.runjest ==  true }}
-        uses: davidbrowaeys/SafireForGitHub/.github/actions/sfdx-lwc-test-run@main
-        with:
-          runDeltaTest: ${{ inputs.deployment-mode == 'DELTA' }}
-          deltaManifest: ${{ inputs.outputdir }}/package.xml
-          failTaskOnFailedTests: ${{ inputs.check-only }}
-          checkPerformance: false
+        run: |
+            npm install -D @salesforce/sfdx-lwc-jest jest-junit jest-environment-jsdom
+        
+            if [ "${{ inputs.deployment-mode }}" = "DELTA" ]; then
+              echo "Checking for LWC changes in ${{ inputs.outputdir }}/package.xml..."
+              
+              # Check if the manifest contains LWC components
+              if grep -q 'LightningComponentBundle' "${{ inputs.outputdir }}/package.xml"; then
+                echo "LWC components found. Running delta tests..."
+                sf dxb lwc test run --manifest "${{ inputs.outputdir }}/package.xml"
+              else
+                echo "No LWC components found in manifest. Skipping delta tests."
+              fi
+            else
+              echo "Running tests for all LWC components..."
+              sf dxb lwc test run
+            fi
+        shell: bash
           
       - name: 📤 Publish Code Analyzer Report
         uses: actions/upload-artifact@v4
