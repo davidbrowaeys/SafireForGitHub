@@ -461,17 +461,16 @@ jobs:
                 echo "--- End of package.xml ---"
                 
                 # Extract LWC component names from package.xml using awk
-                # This extracts all <members> content between LightningComponentBundle type tags
+                # In package.xml, <members> comes BEFORE <name>, so we collect members first
+                # then output them only if the type is LightningComponentBundle
                 LWC_COMPONENTS=$(awk '
-                  /<types>/,/<\/types>/ {
-                    if (/<name>LightningComponentBundle<\/name>/) found=1
-                    if (found && /<members>/) {
-                      gsub(/.*<members>/, "")
-                      gsub(/<\/members>.*/, "")
-                      printf "%s ", $0
-                    }
-                    if (found && /<\/types>/) found=0
+                  /<types>/ { members="" }
+                  /<members>/ {
+                    gsub(/.*<members>/, "")
+                    gsub(/<\/members>.*/, "")
+                    members = members $0 " "
                   }
+                  /<name>LightningComponentBundle<\/name>/ { print members }
                 ' "${{ inputs.outputdir }}/package.xml" | xargs)
                 
                 echo "Extracted LWC components: '$LWC_COMPONENTS'"
