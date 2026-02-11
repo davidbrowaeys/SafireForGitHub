@@ -51,6 +51,7 @@ runs:
         
         # Run the scan
         sf code-analyzer run \
+          -s 2 \
           -t "$APEX_CLASSES" \
           -f "$OUTPUT_DIR/code-scanner-results.csv"
         
