@@ -1,4 +1,3 @@
-#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
 
 name: 'SF Coverage'
 description: 'Cleanup coverage reports and validate code coverage thresholds'
@@ -73,30 +72,4 @@ runs:
         
         echo "✅ Coverage cleanup and checks completed"
 
-    - name: 📋 Coverage Summary
-      shell: bash
-      run: |
-        COVERAGE_FILE="${{ inputs.coverage-file }}"
-        MIN_COVERAGE="${{ inputs.min-coverage }}"
-        
-        echo "## 🧹 Code Coverage Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        if [ -f "$COVERAGE_FILE" ]; then
-          # Extract overall coverage percentage from cobertura
-          COVERAGE_PCT=$(grep -oP 'line-rate="\K[^"]+' "$COVERAGE_FILE" | head -1 | awk '{printf "%.1f", $1 * 100}')
-          
-          if [ -n "$COVERAGE_PCT" ]; then
-            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-            echo "| Overall Coverage | **${COVERAGE_PCT}%** |" >> $GITHUB_STEP_SUMMARY
-            
-            if [ -n "$MIN_COVERAGE" ]; then
-              echo "| Minimum Required | ${MIN_COVERAGE}% |" >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
-        else
-          echo "ℹ️ Coverage file not found." >> $GITHUB_STEP_SUMMARY
-        fi
 
-#__________________________GenAI: Generated code ends here______________________________#

@@ -1,4 +1,3 @@
-#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
 
 name: 'SF Code Scanner'
 description: 'Run Salesforce Code Analyzer on Apex classes'
@@ -64,29 +63,4 @@ runs:
           echo "⚠️ Code scan completed but no report generated."
         fi
 
-    - name: 📋 Code Scanner Summary
-      shell: bash
-      if: ${{ steps.code_analyzer.outputs.codeScannerReportExists == 'true' }}
-      run: |
-        OUTPUT_DIR="${{ inputs.output-dir }}"
-        REPORT_FILE="$OUTPUT_DIR/code-scanner-results.csv"
-        
-        echo "## 🛡️ Code Analyzer Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        if [ -f "$REPORT_FILE" ]; then
-          # Count issues by severity (assuming CSV format with severity column)
-          TOTAL_ISSUES=$(($(wc -l < "$REPORT_FILE") - 1))
-          
-          if [ "$TOTAL_ISSUES" -gt 0 ]; then
-            echo "⚠️ **$TOTAL_ISSUES issue(s) found**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "See the uploaded artifact for detailed results." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ **No issues found**" >> $GITHUB_STEP_SUMMARY
-          fi
-        else
-          echo "ℹ️ No report file generated." >> $GITHUB_STEP_SUMMARY
-        fi
 
-#__________________________GenAI: Generated code ends here______________________________#

@@ -1,4 +1,3 @@
-#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
 
 name: Salesforce CI/CD Logic
 
@@ -249,4 +248,4 @@ jobs:
           run-tests: ${{ steps.deploy.outputs.run-tests }}
           scanner-report-exists: ${{ steps.scanner.outputs.report-exists }}
 
-#__________________________GenAI: Generated code ends here______________________________#
+

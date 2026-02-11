@@ -1,4 +1,3 @@
-#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
 
 name: 'SF Jest'
 description: 'Run LWC Jest tests with delta or full mode support'
@@ -105,64 +104,4 @@ runs:
           exit 0
         fi
 
-    - name: 📋 Jest Test Summary
-      shell: bash
-      run: |
-        OUTPUT_DIR="${{ inputs.output-dir }}"
-        
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## 🧪 LWC Jest Test Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        if [ -f "$OUTPUT_DIR/jest-results.json" ]; then
-          # Parse JSON results and create summary
-          TOTAL=$(jq '.numTotalTests // 0' "$OUTPUT_DIR/jest-results.json")
-          PASSED=$(jq '.numPassedTests // 0' "$OUTPUT_DIR/jest-results.json")
-          FAILED=$(jq '.numFailedTests // 0' "$OUTPUT_DIR/jest-results.json")
-          PENDING=$(jq '.numPendingTests // 0' "$OUTPUT_DIR/jest-results.json")
-          SUCCESS=$(jq '.success // false' "$OUTPUT_DIR/jest-results.json")
-          
-          if [ "$SUCCESS" = "true" ]; then
-            echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Some tests failed**" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :---: |" >> $GITHUB_STEP_SUMMARY
-          echo "| Total Tests | $TOTAL |" >> $GITHUB_STEP_SUMMARY
-          echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
-          echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
-          echo "| ⏸️ Pending/Skipped | $PENDING |" >> $GITHUB_STEP_SUMMARY
-          
-          # List test suites with their status
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Suites" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          jq -r '.testResults[] | "| \(if .status == "passed" then "✅" else "❌" end) | \(.name | split("/") | last) | \(.assertionResults | length) tests |"' "$OUTPUT_DIR/jest-results.json" 2>/dev/null | while read line; do
-            echo "$line" >> $GITHUB_STEP_SUMMARY
-          done
-          
-          # If there are failures, show details
-          if [ "$FAILED" -gt 0 ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### ❌ Failed Tests Details" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            jq -r '.testResults[].assertionResults[] | select(.status == "failed") | "Test: \(.fullName)\nError: \(.failureMessages[0] // "Unknown error")\n---"' "$OUTPUT_DIR/jest-results.json" 2>/dev/null >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
-        else
-          echo "ℹ️ No Jest test results file found." >> $GITHUB_STEP_SUMMARY
-          if [ -f "$OUTPUT_DIR/jest-output.txt" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Console Output" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat "$OUTPUT_DIR/jest-output.txt" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
 
-#__________________________GenAI: Generated code ends here______________________________#

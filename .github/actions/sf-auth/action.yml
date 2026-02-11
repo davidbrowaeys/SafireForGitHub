@@ -1,4 +1,3 @@
-#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
 
 name: "SF Auth"
 description: "Authenticate to Salesforce org using SFDX Auth URL"
@@ -28,4 +27,4 @@ runs:
 
         echo "✅ Successfully authenticated to ${{ inputs.target-env }}"
 
-#__________________________GenAI: Generated code ends here______________________________#
+

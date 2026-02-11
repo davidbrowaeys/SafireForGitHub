@@ -1,4 +1,3 @@
-#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
 
 name: 'SF Data Import'
 description: 'Import data to Salesforce org after deployment'
@@ -40,11 +39,4 @@ runs:
         
         echo "✅ Data Import completed successfully"
 
-    - name: 📋 Data Import Summary
-      shell: bash
-      run: |
-        echo "## 📥 Data Import" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Data import completed using definition file: \`${{ inputs.data-def-file }}\`" >> $GITHUB_STEP_SUMMARY
 
-#__________________________GenAI: Generated code ends here______________________________#
