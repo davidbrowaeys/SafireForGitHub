@@ -1,0 +1,168 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Jest'
+description: 'Run LWC Jest tests with delta or full mode support'
+
+inputs:
+  deployment-mode:
+    description: 'Deployment Mode (DELTA or FULL)'
+    required: true
+  package-xml:
+    description: 'Path to package.xml (for delta mode LWC detection)'
+    required: false
+    default: ''
+  fail-on-error:
+    description: 'Fail the workflow if Jest tests fail'
+    required: false
+    default: 'false'
+  output-dir:
+    description: 'Output directory for test results'
+    required: false
+    default: 'testresults/lwc'
+
+outputs:
+  tests-passed:
+    description: 'Whether all Jest tests passed'
+    value: ${{ steps.jest_tests.outputs.testsPassed }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🧪 Run LWC Jest Tests
+      id: jest_tests
+      shell: bash
+      run: |
+        DEPLOYMENT_MODE="${{ inputs.deployment-mode }}"
+        PACKAGE_XML="${{ inputs.package-xml }}"
+        FAIL_ON_ERROR="${{ inputs.fail-on-error }}"
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        
+        # Install Jest dependencies
+        npm install -D @salesforce/sfdx-lwc-jest jest-junit jest-environment-jsdom
+        
+        # Create directory for jest results
+        mkdir -p "$OUTPUT_DIR"
+        
+        JEST_EXIT_CODE=0
+        
+        if [ "$DEPLOYMENT_MODE" = "DELTA" ]; then
+          echo "Checking for LWC changes in $PACKAGE_XML..."
+          
+          if [ -z "$PACKAGE_XML" ] || [ ! -f "$PACKAGE_XML" ]; then
+            echo "Package XML not found. Skipping delta tests."
+            echo "testsPassed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if the manifest contains LWC components
+          if grep -q 'LightningComponentBundle' "$PACKAGE_XML"; then
+            echo "LWC components found. Extracting component names for delta tests..."
+            
+            # Extract LWC component names from package.xml
+            LWC_COMPONENTS=$(awk '
+              /<types>/ { members="" }
+              /<members>/ {
+                gsub(/.*<members>/, "")
+                gsub(/<\/members>.*/, "")
+                members = members $0 " "
+              }
+              /<name>LightningComponentBundle<\/name>/ { print members }
+            ' "$PACKAGE_XML" | xargs)
+            
+            echo "Extracted LWC components: '$LWC_COMPONENTS'"
+            
+            if [ -n "$LWC_COMPONENTS" ]; then
+              echo "Running delta tests for components: $LWC_COMPONENTS"
+              npx sfdx-lwc-jest -- $LWC_COMPONENTS --silent --ci --bail=false --json --outputFile="$OUTPUT_DIR/jest-results.json" 2>&1 | tee "$OUTPUT_DIR/jest-output.txt" || true
+              JEST_EXIT_CODE=${PIPESTATUS[0]}
+            else
+              echo "No LWC component names extracted. Skipping tests."
+              JEST_EXIT_CODE=0
+            fi
+          else
+            echo "No LWC components found in manifest. Skipping delta tests."
+            JEST_EXIT_CODE=0
+          fi
+        else
+          echo "Running tests for all LWC components..."
+          npx sfdx-lwc-jest --silent --ci --bail=false --json --outputFile="$OUTPUT_DIR/jest-results.json" 2>&1 | tee "$OUTPUT_DIR/jest-output.txt" || true
+          JEST_EXIT_CODE=${PIPESTATUS[0]}
+        fi
+        
+        # Set output based on exit code
+        if [ "$JEST_EXIT_CODE" -eq 0 ]; then
+          echo "testsPassed=true" >> $GITHUB_OUTPUT
+        else
+          echo "testsPassed=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Exit with the original Jest exit code only if fail-on-error is true
+        if [ "$FAIL_ON_ERROR" = "true" ] && [ "$JEST_EXIT_CODE" -ne 0 ]; then
+          echo "::error::LWC Jest tests failed and fail-on-error is enabled."
+          exit $JEST_EXIT_CODE
+        elif [ "$JEST_EXIT_CODE" -ne 0 ]; then
+          echo "::warning::LWC Jest tests failed but fail-on-error is disabled. Continuing workflow."
+          exit 0
+        fi
+
+    - name: 📋 Jest Test Summary
+      shell: bash
+      run: |
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🧪 LWC Jest Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "$OUTPUT_DIR/jest-results.json" ]; then
+          # Parse JSON results and create summary
+          TOTAL=$(jq '.numTotalTests // 0' "$OUTPUT_DIR/jest-results.json")
+          PASSED=$(jq '.numPassedTests // 0' "$OUTPUT_DIR/jest-results.json")
+          FAILED=$(jq '.numFailedTests // 0' "$OUTPUT_DIR/jest-results.json")
+          PENDING=$(jq '.numPendingTests // 0' "$OUTPUT_DIR/jest-results.json")
+          SUCCESS=$(jq '.success // false' "$OUTPUT_DIR/jest-results.json")
+          
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Some tests failed**" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :---: |" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Tests | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⏸️ Pending/Skipped | $PENDING |" >> $GITHUB_STEP_SUMMARY
+          
+          # List test suites with their status
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Suites" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          jq -r '.testResults[] | "| \(if .status == "passed" then "✅" else "❌" end) | \(.name | split("/") | last) | \(.assertionResults | length) tests |"' "$OUTPUT_DIR/jest-results.json" 2>/dev/null | while read line; do
+            echo "$line" >> $GITHUB_STEP_SUMMARY
+          done
+          
+          # If there are failures, show details
+          if [ "$FAILED" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ❌ Failed Tests Details" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            jq -r '.testResults[].assertionResults[] | select(.status == "failed") | "Test: \(.fullName)\nError: \(.failureMessages[0] // "Unknown error")\n---"' "$OUTPUT_DIR/jest-results.json" 2>/dev/null >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "ℹ️ No Jest test results file found." >> $GITHUB_STEP_SUMMARY
+          if [ -f "$OUTPUT_DIR/jest-output.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Console Output" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat "$OUTPUT_DIR/jest-output.txt" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+
+#__________________________GenAI: Generated code ends here______________________________#

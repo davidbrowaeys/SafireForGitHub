@@ -1,0 +1,102 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Coverage'
+description: 'Cleanup coverage reports and validate code coverage thresholds'
+
+inputs:
+  coverage-file:
+    description: 'Path to cobertura.xml coverage file'
+    required: true
+    default: 'testresults/apex/coverage/cobertura.xml'
+  junit-file:
+    description: 'Path to junit.xml test results file'
+    required: true
+    default: 'testresults/apex/junit/junit.xml'
+  min-coverage:
+    description: 'Minimum code coverage percentage required'
+    required: false
+    default: ''
+  check-performance:
+    description: 'Maximum test execution time in seconds'
+    required: false
+    default: ''
+  check-only:
+    description: 'Is this a validation run (check-only deployment)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🧹 Coverage Cleanup and Checks
+      id: codecoveragecheck
+      shell: bash
+      run: |
+        COVERAGE_FILE="${{ inputs.coverage-file }}"
+        JUNIT_FILE="${{ inputs.junit-file }}"
+        MIN_COVERAGE="${{ inputs.min-coverage }}"
+        CHECK_PERFORMANCE="${{ inputs.check-performance }}"
+        CHECK_ONLY="${{ inputs.check-only }}"
+        
+        # Check if both report files exist before proceeding
+        if [ ! -e "$COVERAGE_FILE" ] || [ ! -e "$JUNIT_FILE" ]; then
+          echo "Skipping coverage cleanup/checks: Required files ($COVERAGE_FILE or $JUNIT_FILE) not found."
+          exit 0
+        fi
+        
+        echo "--- Starting Apex Report Cleanup ---"
+        echo "Coverage File: $COVERAGE_FILE"
+        echo "JUnit File: $JUNIT_FILE"
+        
+        # Display content before cleanup (for debugging)
+        echo "--- Cobertura XML before cleanup (first 20 lines) ---"
+        head -n 20 "$COVERAGE_FILE"
+        echo "--------------------------------------------------------"
+        
+        # Clean up the Cobertura XML file paths
+        echo "sf dxb apex coverage cleanup -f $COVERAGE_FILE"
+        sf dxb apex coverage cleanup -f "$COVERAGE_FILE"
+        
+        # Check Minimum Code Coverage (only for validation runs)
+        if [ -n "$MIN_COVERAGE" ] && [ "$CHECK_ONLY" = "true" ]; then
+          echo "--- Verify Minimum Apex Code Coverage: $MIN_COVERAGE% ---"
+          echo "sf dxb apex coverage check -f $COVERAGE_FILE -c $MIN_COVERAGE"
+          sf dxb apex coverage check -f "$COVERAGE_FILE" -c "$MIN_COVERAGE"
+        fi
+        
+        # Check Performance (JUNIT)
+        if [ -n "$CHECK_PERFORMANCE" ]; then
+          MAX_TIME_SECONDS="$CHECK_PERFORMANCE"
+          echo "--- Verify Test Performance (Max $MAX_TIME_SECONDS seconds) ---"
+          echo "sf dxb junit check -p $JUNIT_FILE -t $MAX_TIME_SECONDS"
+          sf dxb junit check -p "$JUNIT_FILE" -t "$MAX_TIME_SECONDS"
+        fi
+        
+        echo "✅ Coverage cleanup and checks completed"
+
+    - name: 📋 Coverage Summary
+      shell: bash
+      run: |
+        COVERAGE_FILE="${{ inputs.coverage-file }}"
+        MIN_COVERAGE="${{ inputs.min-coverage }}"
+        
+        echo "## 🧹 Code Coverage Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "$COVERAGE_FILE" ]; then
+          # Extract overall coverage percentage from cobertura
+          COVERAGE_PCT=$(grep -oP 'line-rate="\K[^"]+' "$COVERAGE_FILE" | head -1 | awk '{printf "%.1f", $1 * 100}')
+          
+          if [ -n "$COVERAGE_PCT" ]; then
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+            echo "| Overall Coverage | **${COVERAGE_PCT}%** |" >> $GITHUB_STEP_SUMMARY
+            
+            if [ -n "$MIN_COVERAGE" ]; then
+              echo "| Minimum Required | ${MIN_COVERAGE}% |" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+        else
+          echo "ℹ️ Coverage file not found." >> $GITHUB_STEP_SUMMARY
+        fi
+
+#__________________________GenAI: Generated code ends here______________________________#

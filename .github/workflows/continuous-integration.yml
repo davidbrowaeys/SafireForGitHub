@@ -39,12 +39,12 @@ on:
         description: 'Run pre-deployment org configuration data step'
         required: false
         type: boolean
-        default: false # Set a default value
+        default: false
       run-code-scanner:
         description: 'Run Salesforce code analyzer'
         required: false
         type: boolean
-        default: false # Set a default value
+        default: false
       run-data-import: 
         description: Run data import
         required: false 
@@ -65,6 +65,7 @@ on:
         required: false
         type: boolean
         default: false
+
 jobs:
   salesforce_ci:
     runs-on: ubuntu-latest
@@ -72,48 +73,42 @@ jobs:
     environment: ${{ inputs.target-env }}
 
     env:
-      # Map inputs to environment variables used in the script
       TARGET_ENV: ${{ inputs.target-env }}
       DEPLOYMENT_MODE: ${{ inputs.deployment-mode }}
       CHECK_ONLY: ${{ inputs.check-only }}
       OUTPUT_DIR: ${{ inputs.outputdir }}
-      CHANGE_DETECTION_TYPE: ${{ inputs.change-detection-type }}
-      TEST_CLASS_REGEX: ${{ inputs.test-class-regex }}
 
     steps:
-    
+      # ============================================================
+      # INITIALIZATION
+      # ============================================================
       - name: ⬇️ Checkout Repository (Salesforce Project)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           
       - name: ⚙️ Initialize Pipeline
+        id: init
         run: |
           # Set COMPARE_WITH based on check-only
           COMPARE_WITH="${{ inputs.check-only == true && vars.VAL_COMPARE_WITH || vars.DEP_COMPARE_WITH }}"
           
-          # Set DELTA_MODE based on check-only (using the ternary operator)
+          # Set DELTA_MODE based on check-only
           DELTA_MODE="${{ inputs.check-only == true && vars.VAL_DELTA_MODE || vars.DEP_DELTA_MODE }}"
           
           # Set TEST_LEVEL using the nested condition
           TEST_LEVEL="${{ inputs.test-level != '' && inputs.test-level || (inputs.check-only == true && vars.VAL_TEST_LEVEL || vars.DEP_TEST_LEVEL) }}"
           
-          # Export these variables so they are available to subsequent commands
-          # (Optional, but good practice if you have more commands in this script)
+          # Export variables for subsequent steps
           echo "COMPARE_WITH=$COMPARE_WITH" >> $GITHUB_ENV
           echo "DELTA_MODE=$DELTA_MODE" >> $GITHUB_ENV
           echo "TEST_LEVEL=$TEST_LEVEL" >> $GITHUB_ENV
 
-          # -----------------------------------------------------------------
-          # START: CREATE CONFIGURATION SUMMARY
-          # -----------------------------------------------------------------
-          
+          # Create Configuration Summary
           echo "## ⚙️ CI/CD Configuration Summary" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          
-          # Workflow Inputs
           echo "| **Target Environment** | ${{ inputs.target-env }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployment Mode | ${{ inputs.deployment-mode }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Delta Mode | $DELTA_MODE |" >> $GITHUB_STEP_SUMMARY
@@ -122,453 +117,116 @@ jobs:
           echo "| Test Level | $TEST_LEVEL |" >> $GITHUB_STEP_SUMMARY
           echo "| Run Code Scanner | ${{ inputs.run-code-scanner }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Run Org Pre-Config | ${{ inputs.org-preconfig }} |" >> $GITHUB_STEP_SUMMARY
-
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Configuration established successfully. Starting pipeline execution..." >> $GITHUB_STEP_SUMMARY
           
-          # -----------------------------------------------------------------
-          # END: CREATE CONFIGURATION SUMMARY
-          # -----------------------------------------------------------------
-          
+          # Install dependencies and setup plugins
           npm install --save-dev
           sf plugins link $(npm root -g)/dxb
           sf plugins
           git config --global --add safe.directory $PWD
         shell: bash
-          
-      # 1. Login to Salesforce (using the common, fixed secret AUTH_URL)
+
+      # ============================================================
+      # COMPOSITE ACTIONS
+      # ============================================================
+      
+      # 1. Salesforce Authentication
       - name: 🔑 Salesforce Login
-        env:
-            SF_AUTH_URL: ${{ secrets.AUTH_URL }}
-        run: |
-          if [ -z "$SF_AUTH_URL" ]; then
-              # Use single quotes inside the double-quoted string, or escape them
-              echo "::error::SFDX Auth URL secret not found. Ensure the calling workflow passes the secret via the 'AUTH_URL' key in your environment settings."
-              exit 1
-          fi
-          
-          echo "$SF_AUTH_URL" > credentials.txt
-          # Use the environment variable $TARGET_ENV
-          sf org login sfdx-url -f credentials.txt -a "$TARGET_ENV" -s
-        shell: bash
-      # 2. Run Delta
+        uses: ./.github/actions/sf-auth
+        with:
+          target-env: ${{ inputs.target-env }}
+          auth-url: ${{ secrets.AUTH_URL }}
+
+      # 2. Calculate Delta
       - name: 🧮 Calculate Delta
-        id: calculate_delta
-        run: |
-          # Use environment variables which are easier to read and less error-prone
-          if [ "$DEPLOYMENT_MODE" = "FULL" ]
-          then
-            echo "--- Full Deployment Mode ---"
-            allPackageDirectories=""
-            json=$(cat sfdx-project.json)
-            for i in $(echo "$json" | jq -r '.packageDirectories[].path'); do
-              allPackageDirectories+=" --source-dir $i"
-            done
-            echo "sf project generate manifest $allPackageDirectories -d $OUTPUT_DIR"
-            sf project generate manifest $allPackageDirectories -d $OUTPUT_DIR
-            
-            # Setup for full deployment tests
-            echo "./**/*.cls" > apexclasses
-            echo "" > testClasses
-            echo "::set-output name=noChanges::false" # Force deployment if FULL mode
+        id: delta
+        uses: ./.github/actions/sf-delta
+        with:
+          deployment-mode: ${{ inputs.deployment-mode }}
+          delta-mode: ${{ env.DELTA_MODE }}
+          compare-with: ${{ env.COMPARE_WITH }}
+          output-dir: ${{ inputs.outputdir }}
+          test-level: ${{ env.TEST_LEVEL }}
+          change-detection-type: ${{ inputs.change-detection-type }}
+          test-class-regex: ${{ inputs.test-class-regex }}
 
-          else # DELTA Deployment Mode
-            echo "--- Delta Deployment Mode (Comparing with $COMPARE_WITH) ---"
-            #increase git file name config
-            #git config diff.renameLimit 999999
-            
-            # 1. Generate package.xml and check for changes
-            echo "sf dxb source delta -m $DELTA_MODE -k $COMPARE_WITH -p $OUTPUT_DIR -g"
-            sf dxb source delta -m $DELTA_MODE -k $COMPARE_WITH -p $OUTPUT_DIR -g
-            
-            # Check if package.xml contains actual metadata members
-            if ! grep -q '<members>' "$OUTPUT_DIR/package.xml"; then
-              echo "No changes detected. Skipping deployment."
-              echo "noChanges=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-
-            # 2. Extract Apex classes and test classes for specified tests
-            sf dxb source delta -k $COMPARE_WITH --json | jq -c '.result.deltaMeta[] | select (endswith(".cls"))' | paste -sd, - | sed 's/"//g' > apexclasses
-            cat $OUTPUT_DIR/package.xml
-            
-            if [ "$TEST_LEVEL" = "RunSpecifiedTests" ]; then 
-              echo "sf dxb source fetchtest -x $OUTPUT_DIR/package.xml -t $CHANGE_DETECTION_TYPE --test-class-name-regex $TEST_CLASS_REGEX -d . > testClasses"
-              sf dxb source fetchtest -x $OUTPUT_DIR/package.xml -t $CHANGE_DETECTION_TYPE --test-class-name-regex $TEST_CLASS_REGEX -d . > testClasses    
-              cat testClasses
-            fi
-            echo "noChanges=false" >> $GITHUB_OUTPUT
-
-          fi
-        shell: bash
-        
-        # 3. ⚙️ Set Specific Org Data (New Conditional Step)
+      # 3. Org Pre-Configuration (Conditional)
       - name: ⚙️ Set Specific Org Data
         if: ${{ inputs.org-preconfig == true }}
-        run: |
-          TARGETENV= ${{ inputs.target-env }}
-          # Check if the output of 'sfdx-env-mapping' is non-empty
-          if [[ -s "${{ vars.ORG_SPEC_METADATA_DEF }}" ]]; then
-            CONFIG_FILE="${{ vars.ORG_SPEC_METADATA_DEF }}"
-            echo "Running: sf dxb org data --config $CONFIG_FILE --environment $TARGETENV"
-            sf dxb org data --config "$CONFIG_FILE" --environment "$TARGETENV"
-          else
-            echo "Org. Spec Metadata Def file is empty or not found. Skipping 'Set Specific Org Data'. Go to Settings > Environment and add variable 'ORG_SPEC_METADATA_DEF' with the path of your file."
-          fi
-        shell: bash
-        
-      - name: 🛡️ Run Code Analyzer
-        id: code_analyzer
-        continue-on-error: true # Azure's 'continueOnError: true'
-        if: ${{ inputs.run-code-scanner == true }}
-        run: |
-          # apexclasses file was generated in the 'Calculate Delta' step.
-          # It contains a comma-separated list of changed Apex class paths.
-          APEX_CLASSES=$(cat apexclasses)
-          
-          # Check if the file content is NOT empty/just whitespace, similar to Azure's 'if [[ ! -z "$apexclasses" ]]'
-          if [[ -s apexclasses ]]; then
-            echo "--- Starting Code Scan on $APEX_CLASSES ---"
-            
-            # Create output directory
-            mkdir -p codeanalyzeroutput
-            
-            # Run the scan. We use the SEVERITY_THRESHOLD env var defined earlier.
-            sf code-analyzer run \
-              -t "$APEX_CLASSES" \
-              -f "codeanalyzeroutput/code-scanner-results.csv" \
-            
-            # Set output variable to track if a report was generated (equivalent to Azure's task.setvariable)
-            echo "codeScannerReportExists=true" >> $GITHUB_OUTPUT
-          
-          else
-            echo "Nothing to scan (apexclasses file is empty)."
-            echo "codeScannerReportExists=false" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
-      - name: 🚀 Salesforce Deployment
-        # Use an 'if' condition to ensure this step only runs if noChanges is false.
-        # We assume you set a step output or environment variable 'noChanges'
-        # in your 'Calculate Delta' step.
-        id: sfdeploy
-        if: ${{ steps.calculate_delta.outputs.noChanges == 'false' }}
-        run: |
-          echo "runTests=false" >> $GITHUB_OUTPUT
-          OPTIONS=" -g --wait 666 --json"
-          predestructivepath="${{ vars.PRE_DESTRUCTIVE_XML_PATH }}"
-          postdestructivepath="${{ vars.POST_DESTRUCTIVE_XML_PATH }}"
-          
-          # --- TEST CLASSES (Requires output from 'Calculate Delta' step if RunSpecifiedTests is used) ---
-          # Since you didn't define testClasses globally, we assume it's calculated in the delta step.
-          # For simplicity, we'll try to use the logic from your provided code:
-          TESTCLASSES=""
-          if [ "$TEST_LEVEL" = "RunSpecifiedTests" ]; then 
-            # Assuming 'testClasses' file was created by 'Calculate Delta'
-            if [ -f "testClasses" ]; then
-              input_string=$(cat testClasses)
-              IFS=',' read -ra values <<< "$input_string"
-              for value in "${values[@]}"; do
-                TESTCLASSES+="-t $value "
-              done
-            fi
-
-            if [ -z "$TESTCLASSES" ]; then
-                echo "⚠️ No test classes found. Downgrading TEST_LEVEL to NoTestRun."
-                TEST_LEVEL="NoTestRun"
-            fi
-          fi
-          
-          # -----------------------------------------------------------
-          # 2. Re-apply Deployment Option Overrides
-          # -----------------------------------------------------------
-          
-          if [ "$CHECKONLY" = "true" ]; then
-              OPTIONS="$OPTIONS --dry-run"
-          fi
-          if [ -n "$predestructivepath" ] && [ -f "$predestructivepath" ]; then
-              OPTIONS="$OPTIONS --pre-destructive-changes $predestructivepath"
-          fi
-          if [ -n "$postdestructivepath" ] && [ -f "$postdestructivepath" ]; then
-              OPTIONS="$OPTIONS --post-destructive-changes $postdestructivepath"
-          fi
-          if [ "$TEST_LEVEL" = "RunSpecifiedTests" ] || [ "$TEST_LEVEL" = "RunLocalTests" ] ; then
-              OPTIONS="$OPTIONS --junit --results-dir testresults/apex --coverage-formatters cobertura"
-              echo "runTests=true" >> $GITHUB_OUTPUT
-          fi
-          
-          echo "--- Initiating Deployment ---"
-          echo "Test Level: $TEST_LEVEL"
-          echo "Test Classes: $TESTCLASSES"
-          echo "Deployment Options: $OPTIONS"
-          
-          # -----------------------------------------------------------
-          # 3. Execute the SFDX Deployment Command
-          # -----------------------------------------------------------
-          echo "sf project start deploy -o ${{ inputs.target-env }} -x ${{ inputs.outputdir }}/package.xml -l $TEST_LEVEL $TESTCLASSES $OPTIONS" 
-          # Use the target-env input, the package.xml from the delta step,
-          # and all the calculated variables.
-          
-          # The command execution
-          sf project start deploy \
-            -o ${{ inputs.target-env }} \
-            -x ${{ inputs.outputdir }}/package.xml \
-            -l $TEST_LEVEL \
-            $TESTCLASSES \
-            $OPTIONS > deployResult.json
-            
-          # Output the result
-          cat deployResult.json | jq 
-      
-        shell: bash
-        
-      - name: 🧹 Coverage Cleanup and Checks
-        # Only run if tests were executed successfully (based on the previous step's output)
-        if: ${{ always() && steps.sfdeploy.outputs.runTests == 'true' }}
-        id: codecoveragecheck
-        run: |
-          # Define file paths
-          COVERAGE_FILE="testresults/apex/coverage/cobertura.xml"
-          JUNIT_FILE="testresults/apex/junit/junit.xml"
-          
-          # Map optional inputs (assuming they exist in your workflow_call inputs)
-          MINCODECOVERAGE="${{ vars.MIN_CODE_COVERAGE }}"
-          CHECKPERFORMANCE="${{ vars.CHECKPERFORMANCE }}"
-          
-          # Map other required inputs
-          CHECKONLY="${{ inputs.check-only }}"
-          
-          # Check if both report files exist before proceeding
-          if [ -e "$COVERAGE_FILE" ] && [ -e "$JUNIT_FILE" ]; then
-              
-              echo "--- Starting Apex Report Cleanup ---"
-              echo "sf dxb apex coverage cleanup -f $COVERAGE_FILE"
-              echo "Update code coverage cobertura file to align apex class file path..."
-              
-              # Displaying the content BEFORE cleanup (for debugging/logs)
-              # We limit the output to prevent log spam if the file is huge
-              echo "--- Cobertura XML before cleanup (first 20 lines) ---"
-              head -n 20 "$COVERAGE_FILE"
-              echo "--------------------------------------------------------"
-              
-              # 1. Clean up the Cobertura XML file paths
-              sf dxb apex coverage cleanup -f "$COVERAGE_FILE"
-              
-              # -------------------------------------------------------------
-              # 2. Check Minimum Code Coverage
-              # -------------------------------------------------------------
-              
-              # The coverage check should only be run if mincodecoverage is provided AND it's a validation run (Check Only)
-              if [ -n "$MINCODECOVERAGE" ] && [ "$CHECKONLY" = "true" ]; then
-                  echo "--- Verify Minimum Apex Code Coverage: $MINCODECOVERAGE% ---"
-                  echo "sf dxb apex coverage check -f $COVERAGE_FILE -c $MINCODECOVERAGE"
-                  
-                  # This command will fail the step if coverage is too low
-                  sf dxb apex coverage check -f "$COVERAGE_FILE" -c "$MINCODECOVERAGE"
-              fi
-              
-              # -------------------------------------------------------------
-              # 3. Check Performance (JUNIT)
-              # -------------------------------------------------------------
-              # The performance check runs if the input is provided
-              if [ -n "$CHECKPERFORMANCE" ]; then
-                  # Assuming CHECKPERFORMANCE provides the max time (e.g., "3" for 3 seconds)
-                  MAX_TIME_SECONDS="$CHECKPERFORMANCE"
-                  echo "--- Verify Test Performance (Max $MAX_TIME_SECONDS seconds) ---"
-                  echo "sf dxb junit check -p $JUNIT_FILE -t $MAX_TIME_SECONDS"
-                  
-                  # This command will fail the step if any test takes longer than the threshold
-                  sf dxb junit check -p "$JUNIT_FILE" -t "$MAX_TIME_SECONDS"
-              fi
-              
-          else
-              echo "Skipping coverage cleanup/checks: Required files ($COVERAGE_FILE or $JUNIT_FILE) not found."
-          fi
-        shell: bash
-
-        # 8. Data Import (New Conditional Step)
-      - name: 📥 Run Data Import
-        # CRITICAL IF: Only run if it was a successful *deployment* (not validation)
-        if: ${{ inputs.run-data-import == true &&inputs.check-only == false && success() }}
-        
-        run: |
-          # The variable is a repository/environment variable, accessed via the `vars` context
-          DATA_DEF_FILE="${{ vars.DATA_DEF_FILE }}"
-          
-          if [ -z "$DATA_DEF_FILE" ]; then
-            echo "::warning::vars.DATA_DEF_FILE is empty. Skipping data import."
-            exit 0
-          fi
-          
-          echo "--- Starting Data Import ---"
-          echo "Using data definition file: $DATA_DEF_FILE"
-          
-          # Execute the sf dxb data import command
-          # Note: The target org (-o) is already the default due to the 'sf org login' step
-          sf dxb data import -f "$DATA_DEF_FILE" -d data
-          
-          echo "Data Import complete."
-
-        shell: bash
-
-        # Community Publish (New Step - Simplified access)
-      - name: 🌐 Publish Experience Cloud Community
-        # Only run if CHECK_ONLY is 'false' (it's a real deployment)
-        if: ${{ inputs.check-only ==  false && inputs.auto-publish-communities ==  true }}
-        
-        run: |
-          echo "Publishing Experience Cloud site for target: ${{ env.TARGET_ENV }}"
-          sf dxb community publish
-
-        shell: bash
-
-      - name: 📊 Generate Deployment Report
-        if: ${{ always() && steps.sfdeploy.outputs.runTests == 'true' }}
-        run: |
-          # Create reports directory if it doesn't exist
-          mkdir -p reports
-          
-          # Generate deployment report in markdown format
-          # Paths adapted for Linux (Ubuntu runner)
-          sf dxb deployment report \
-            -p ${{ inputs.outputdir }}/package.xml \
-            -a codeanalyzeroutput/code-scanner-results.csv \
-            -c \
-            -d reports \
-            -f deployResult.json \
-            -j testresults/apex/junit/junit.xml \
-            -b testresults/apex/coverage/cobertura.xml \
-            -r markdown \
-            -t "Salesforce Deployment Report"
-          
-          # Append the generated report to GitHub Step Summary if it exists
-          if [ -f "reports/deployment-report.md" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            cat reports/deployment-report.md >> $GITHUB_STEP_SUMMARY
-          fi
-        shell: bash
-
-      - name: 🧪 Run LWC JEST Tests
-        if: ${{ inputs.runjest ==  true }}
-        run: |
-            npm install -D @salesforce/sfdx-lwc-jest jest-junit jest-environment-jsdom
-            
-            # Create directory for jest results
-            mkdir -p testresults/lwc
-        
-            if [ "${{ inputs.deployment-mode }}" = "DELTA" ]; then
-              echo "Checking for LWC changes in ${{ inputs.outputdir }}/package.xml..."
-              
-              # Check if the manifest contains LWC components
-              if grep -q 'LightningComponentBundle' "${{ inputs.outputdir }}/package.xml"; then
-                echo "LWC components found. Extracting component names for delta tests..."
-                
-                # Extract LWC component names from package.xml using awk
-                # In package.xml, <members> comes BEFORE <name>, so we collect members first
-                # then output them only if the type is LightningComponentBundle
-                LWC_COMPONENTS=$(awk '
-                  /<types>/ { members="" }
-                  /<members>/ {
-                    gsub(/.*<members>/, "")
-                    gsub(/<\/members>.*/, "")
-                    members = members $0 " "
-                  }
-                  /<name>LightningComponentBundle<\/name>/ { print members }
-                ' "${{ inputs.outputdir }}/package.xml" | xargs)
-                
-                echo "Extracted LWC components: '$LWC_COMPONENTS'"
-                
-                if [ -n "$LWC_COMPONENTS" ]; then
-                  echo "Running delta tests for components: $LWC_COMPONENTS"
-                  # Run sfdx-lwc-jest with component names as test path patterns and JSON output
-                  npx sfdx-lwc-jest -- $LWC_COMPONENTS --silent --ci --bail=false --json --outputFile=testresults/lwc/jest-results.json 2>&1 | tee testresults/lwc/jest-output.txt || true
-                  JEST_EXIT_CODE=${PIPESTATUS[0]}
-                else
-                  echo "No LWC component names extracted. Skipping tests."
-                  JEST_EXIT_CODE=0
-                fi
-              else
-                echo "No LWC components found in manifest. Skipping delta tests."
-                JEST_EXIT_CODE=0
-              fi
-            else
-              echo "Running tests for all LWC components..."
-              npx sfdx-lwc-jest --silent --ci --bail=false --json --outputFile=testresults/lwc/jest-results.json 2>&1 | tee testresults/lwc/jest-output.txt || true
-              JEST_EXIT_CODE=${PIPESTATUS[0]}
-            fi
-            
-            # Generate GitHub Job Summary for LWC Jest Tests
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## 🧪 LWC Jest Test Results" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            if [ -f "testresults/lwc/jest-results.json" ]; then
-              # Parse JSON results and create summary
-              TOTAL=$(jq '.numTotalTests // 0' testresults/lwc/jest-results.json)
-              PASSED=$(jq '.numPassedTests // 0' testresults/lwc/jest-results.json)
-              FAILED=$(jq '.numFailedTests // 0' testresults/lwc/jest-results.json)
-              PENDING=$(jq '.numPendingTests // 0' testresults/lwc/jest-results.json)
-              SUCCESS=$(jq '.success // false' testresults/lwc/jest-results.json)
-              
-              if [ "$SUCCESS" = "true" ]; then
-                echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "❌ **Some tests failed**" >> $GITHUB_STEP_SUMMARY
-              fi
-              
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
-              echo "| :--- | :---: |" >> $GITHUB_STEP_SUMMARY
-              echo "| Total Tests | $TOTAL |" >> $GITHUB_STEP_SUMMARY
-              echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
-              echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
-              echo "| ⏸️ Pending/Skipped | $PENDING |" >> $GITHUB_STEP_SUMMARY
-              
-              # List test suites with their status
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "### Test Suites" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              
-              jq -r '.testResults[] | "| \(if .status == "passed" then "✅" else "❌" end) | \(.name | split("/") | last) | \(.assertionResults | length) tests |"' testresults/lwc/jest-results.json 2>/dev/null | while read line; do
-                echo "$line" >> $GITHUB_STEP_SUMMARY
-              done
-              
-              # If there are failures, show details
-              if [ "$FAILED" -gt 0 ]; then
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "### ❌ Failed Tests Details" >> $GITHUB_STEP_SUMMARY
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo '```' >> $GITHUB_STEP_SUMMARY
-                jq -r '.testResults[].assertionResults[] | select(.status == "failed") | "Test: \(.fullName)\nError: \(.failureMessages[0] // "Unknown error")\n---"' testresults/lwc/jest-results.json 2>/dev/null >> $GITHUB_STEP_SUMMARY
-                echo '```' >> $GITHUB_STEP_SUMMARY
-              fi
-            else
-              echo "ℹ️ No Jest test results file found." >> $GITHUB_STEP_SUMMARY
-              if [ -f "testresults/lwc/jest-output.txt" ]; then
-                echo "" >> $GITHUB_STEP_SUMMARY
-                echo "### Console Output" >> $GITHUB_STEP_SUMMARY
-                echo '```' >> $GITHUB_STEP_SUMMARY
-                cat testresults/lwc/jest-output.txt >> $GITHUB_STEP_SUMMARY
-                echo '```' >> $GITHUB_STEP_SUMMARY
-              fi
-            fi
-            
-            # Exit with the original Jest exit code only if jest-fail-on-error is true
-            if [ "${{ inputs.jest-fail-on-error }}" = "true" ] && [ "$JEST_EXIT_CODE" -ne 0 ]; then
-              echo "::error::LWC Jest tests failed and jest-fail-on-error is enabled."
-              exit $JEST_EXIT_CODE
-            elif [ "$JEST_EXIT_CODE" -ne 0 ]; then
-              echo "::warning::LWC Jest tests failed but jest-fail-on-error is disabled. Continuing workflow."
-              exit 0
-            fi
-        shell: bash
-          
-      - name: 📤 Publish Code Analyzer Report
-        uses: actions/upload-artifact@v4
-        
-        if: ${{ steps.code_analyzer.outputs.codeScannerReportExists == 'true' }}
+        uses: ./.github/actions/sf-org-preconfig
         with:
-          name: Code-Analyzer-Report-${{ inputs.target-env }}
-          path: codeanalyzeroutput/code-scanner-results.csv
-          
-          retention-days: 7
+          target-env: ${{ inputs.target-env }}
+          config-file: ${{ vars.ORG_SPEC_METADATA_DEF }}
+
+      # 4. Code Scanner (Conditional)
+      - name: 🛡️ Run Code Analyzer
+        id: scanner
+        if: ${{ inputs.run-code-scanner == true }}
+        uses: ./.github/actions/sf-code-scanner
+        with:
+          apex-classes: ${{ steps.delta.outputs.apex-classes }}
+          output-dir: codeanalyzeroutput
+
+      # 5. Salesforce Deployment
+      - name: 🚀 Salesforce Deployment
+        id: deploy
+        if: ${{ steps.delta.outputs.no-changes == 'false' }}
+        uses: ./.github/actions/sf-deploy
+        with:
+          target-env: ${{ inputs.target-env }}
+          package-xml: ${{ inputs.outputdir }}/package.xml
+          test-level: ${{ env.TEST_LEVEL }}
+          test-classes: ${{ steps.delta.outputs.test-classes }}
+          check-only: ${{ inputs.check-only }}
+          pre-destructive-path: ${{ vars.PRE_DESTRUCTIVE_XML_PATH }}
+          post-destructive-path: ${{ vars.POST_DESTRUCTIVE_XML_PATH }}
+
+      # 6. Coverage Cleanup and Checks
+      - name: 🧹 Coverage Cleanup and Checks
+        if: ${{ always() && steps.deploy.outputs.run-tests == 'true' }}
+        uses: ./.github/actions/sf-coverage
+        with:
+          coverage-file: testresults/apex/coverage/cobertura.xml
+          junit-file: testresults/apex/junit/junit.xml
+          min-coverage: ${{ vars.MIN_CODE_COVERAGE }}
+          check-performance: ${{ vars.CHECKPERFORMANCE }}
+          check-only: ${{ inputs.check-only }}
+
+      # 7. Data Import (Conditional - only on actual deployment)
+      - name: 📥 Run Data Import
+        if: ${{ inputs.run-data-import == true && inputs.check-only == false && success() }}
+        uses: ./.github/actions/sf-data-import
+        with:
+          data-def-file: ${{ vars.DATA_DEF_FILE }}
+          data-dir: data
+
+      # 8. Community Publish (Conditional - only on actual deployment)
+      - name: 🌐 Publish Experience Cloud Community
+        if: ${{ inputs.check-only == false && inputs.auto-publish-communities == true }}
+        uses: ./.github/actions/sf-community-publish
+        with:
+          target-env: ${{ inputs.target-env }}
+
+      # 9. LWC Jest Tests (Conditional)
+      - name: 🧪 Run LWC Jest Tests
+        if: ${{ inputs.runjest == true }}
+        uses: ./.github/actions/sf-jest
+        with:
+          deployment-mode: ${{ inputs.deployment-mode }}
+          package-xml: ${{ inputs.outputdir }}/package.xml
+          fail-on-error: ${{ inputs.jest-fail-on-error }}
+          output-dir: testresults/lwc
+
+      # 10. Generate Report and Upload Artifacts
+      - name: 📊 Generate Report and Upload Artifacts
+        if: ${{ always() }}
+        uses: ./.github/actions/sf-report
+        with:
+          package-xml: ${{ inputs.outputdir }}/package.xml
+          deploy-result: deployResult.json
+          junit-file: testresults/apex/junit/junit.xml
+          coverage-file: testresults/apex/coverage/cobertura.xml
+          scanner-report: codeanalyzeroutput/code-scanner-results.csv
+          target-env: ${{ inputs.target-env }}
+          run-tests: ${{ steps.deploy.outputs.run-tests }}
+          scanner-report-exists: ${{ steps.scanner.outputs.report-exists }}

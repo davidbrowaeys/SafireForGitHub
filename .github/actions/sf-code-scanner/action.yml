@@ -1,0 +1,92 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Code Scanner'
+description: 'Run Salesforce Code Analyzer on Apex classes'
+
+inputs:
+  apex-classes:
+    description: 'Comma-separated list of Apex class paths to scan'
+    required: true
+  output-dir:
+    description: 'Output directory for scanner results'
+    required: false
+    default: 'codeanalyzeroutput'
+
+outputs:
+  report-exists:
+    description: 'Whether a code scanner report was generated'
+    value: ${{ steps.code_analyzer.outputs.codeScannerReportExists }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🛡️ Run Code Analyzer
+      id: code_analyzer
+      shell: bash
+      continue-on-error: true
+      run: |
+        APEX_CLASSES="${{ inputs.apex-classes }}"
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        
+        # Check if apex classes are provided
+        if [ -z "$APEX_CLASSES" ] || [ "$APEX_CLASSES" = "./**/*.cls" ]; then
+          echo "No specific Apex classes to scan or scanning all classes."
+          
+          # For full deployment, check if there are any cls files
+          if [ "$APEX_CLASSES" = "./**/*.cls" ]; then
+            APEX_CLASSES=$(find . -name "*.cls" -type f | head -100 | tr '\n' ',' | sed 's/,$//')
+          fi
+        fi
+        
+        if [ -z "$APEX_CLASSES" ]; then
+          echo "Nothing to scan (no Apex classes found)."
+          echo "codeScannerReportExists=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        echo "--- Starting Code Scan ---"
+        echo "Scanning: $APEX_CLASSES"
+        
+        # Create output directory
+        mkdir -p "$OUTPUT_DIR"
+        
+        # Run the scan
+        sf code-analyzer run \
+          -t "$APEX_CLASSES" \
+          -f "$OUTPUT_DIR/code-scanner-results.csv"
+        
+        # Set output variable to track if a report was generated
+        if [ -f "$OUTPUT_DIR/code-scanner-results.csv" ]; then
+          echo "codeScannerReportExists=true" >> $GITHUB_OUTPUT
+          echo "✅ Code scan completed. Report generated."
+        else
+          echo "codeScannerReportExists=false" >> $GITHUB_OUTPUT
+          echo "⚠️ Code scan completed but no report generated."
+        fi
+
+    - name: 📋 Code Scanner Summary
+      shell: bash
+      if: ${{ steps.code_analyzer.outputs.codeScannerReportExists == 'true' }}
+      run: |
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        REPORT_FILE="$OUTPUT_DIR/code-scanner-results.csv"
+        
+        echo "## 🛡️ Code Analyzer Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "$REPORT_FILE" ]; then
+          # Count issues by severity (assuming CSV format with severity column)
+          TOTAL_ISSUES=$(($(wc -l < "$REPORT_FILE") - 1))
+          
+          if [ "$TOTAL_ISSUES" -gt 0 ]; then
+            echo "⚠️ **$TOTAL_ISSUES issue(s) found**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "See the uploaded artifact for detailed results." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No issues found**" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "ℹ️ No report file generated." >> $GITHUB_STEP_SUMMARY
+        fi
+
+#__________________________GenAI: Generated code ends here______________________________#

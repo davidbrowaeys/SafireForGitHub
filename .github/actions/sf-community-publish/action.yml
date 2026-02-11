@@ -1,0 +1,33 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Community Publish'
+description: 'Publish Experience Cloud communities after deployment'
+
+inputs:
+  target-env:
+    description: 'Salesforce Target Environment Alias'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🌐 Publish Experience Cloud Community
+      shell: bash
+      run: |
+        TARGET_ENV="${{ inputs.target-env }}"
+        
+        echo "--- Publishing Experience Cloud Communities ---"
+        echo "Target Environment: $TARGET_ENV"
+        
+        sf dxb community publish
+        
+        echo "✅ Experience Cloud communities published successfully"
+
+    - name: 📋 Community Publish Summary
+      shell: bash
+      run: |
+        echo "## 🌐 Experience Cloud Publishing" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ All Experience Cloud communities have been published for **${{ inputs.target-env }}**" >> $GITHUB_STEP_SUMMARY
+
+#__________________________GenAI: Generated code ends here______________________________#

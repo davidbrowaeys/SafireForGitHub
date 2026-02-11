@@ -1,0 +1,132 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Delta'
+description: 'Calculate delta changes and generate package.xml for Salesforce deployment'
+
+inputs:
+  deployment-mode:
+    description: 'Deployment Mode (DELTA or FULL)'
+    required: true
+  delta-mode:
+    description: 'Git diff mode for delta calculation'
+    required: true
+  compare-with:
+    description: 'Branch or commit to compare with'
+    required: true
+  output-dir:
+    description: 'Output directory for package.xml and artifacts'
+    required: true
+    default: 'results'
+  test-level:
+    description: 'Test Level (NoTestRun, RunLocalTests, RunSpecifiedTests)'
+    required: false
+    default: ''
+  change-detection-type:
+    description: 'Metadata type for test class detection'
+    required: false
+    default: 'classes'
+  test-class-regex:
+    description: 'Regex for matching test class names'
+    required: false
+    default: '.*Test.*$'
+
+outputs:
+  no-changes:
+    description: 'Whether there are no changes to deploy'
+    value: ${{ steps.calculate_delta.outputs.noChanges }}
+  apex-classes:
+    description: 'Comma-separated list of changed Apex class paths'
+    value: ${{ steps.calculate_delta.outputs.apexClasses }}
+  test-classes:
+    description: 'Comma-separated list of test classes to run'
+    value: ${{ steps.calculate_delta.outputs.testClasses }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🧮 Calculate Delta
+      id: calculate_delta
+      shell: bash
+      run: |
+        DEPLOYMENT_MODE="${{ inputs.deployment-mode }}"
+        DELTA_MODE="${{ inputs.delta-mode }}"
+        COMPARE_WITH="${{ inputs.compare-with }}"
+        OUTPUT_DIR="${{ inputs.output-dir }}"
+        TEST_LEVEL="${{ inputs.test-level }}"
+        CHANGE_DETECTION_TYPE="${{ inputs.change-detection-type }}"
+        TEST_CLASS_REGEX="${{ inputs.test-class-regex }}"
+
+        if [ "$DEPLOYMENT_MODE" = "FULL" ]; then
+          echo "--- Full Deployment Mode ---"
+          allPackageDirectories=""
+          json=$(cat sfdx-project.json)
+          for i in $(echo "$json" | jq -r '.packageDirectories[].path'); do
+            allPackageDirectories+=" --source-dir $i"
+          done
+          echo "sf project generate manifest $allPackageDirectories -d $OUTPUT_DIR"
+          sf project generate manifest $allPackageDirectories -d $OUTPUT_DIR
+          
+          # Setup for full deployment tests
+          echo "./**/*.cls" > apexclasses
+          echo "" > testClasses
+          echo "noChanges=false" >> $GITHUB_OUTPUT
+          echo "apexClasses=$(cat apexclasses)" >> $GITHUB_OUTPUT
+          echo "testClasses=" >> $GITHUB_OUTPUT
+
+        else
+          echo "--- Delta Deployment Mode (Comparing with $COMPARE_WITH) ---"
+          
+          # Generate package.xml and check for changes
+          echo "sf dxb source delta -m $DELTA_MODE -k $COMPARE_WITH -p $OUTPUT_DIR -g"
+          sf dxb source delta -m $DELTA_MODE -k $COMPARE_WITH -p $OUTPUT_DIR -g
+          
+          # Check if package.xml contains actual metadata members
+          if ! grep -q '<members>' "$OUTPUT_DIR/package.xml"; then
+            echo "No changes detected. Skipping deployment."
+            echo "noChanges=true" >> $GITHUB_OUTPUT
+            echo "apexClasses=" >> $GITHUB_OUTPUT
+            echo "testClasses=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract Apex classes for code scanning
+          sf dxb source delta -k $COMPARE_WITH --json | jq -c '.result.deltaMeta[] | select (endswith(".cls"))' | paste -sd, - | sed 's/"//g' > apexclasses
+          cat $OUTPUT_DIR/package.xml
+          
+          APEX_CLASSES=$(cat apexclasses)
+          echo "apexClasses=$APEX_CLASSES" >> $GITHUB_OUTPUT
+          
+          # Extract test classes if RunSpecifiedTests
+          if [ "$TEST_LEVEL" = "RunSpecifiedTests" ]; then 
+            echo "sf dxb source fetchtest -x $OUTPUT_DIR/package.xml -t $CHANGE_DETECTION_TYPE --test-class-name-regex $TEST_CLASS_REGEX -d . > testClasses"
+            sf dxb source fetchtest -x $OUTPUT_DIR/package.xml -t $CHANGE_DETECTION_TYPE --test-class-name-regex $TEST_CLASS_REGEX -d . > testClasses    
+            cat testClasses
+            TEST_CLASSES=$(cat testClasses)
+            echo "testClasses=$TEST_CLASSES" >> $GITHUB_OUTPUT
+          else
+            echo "testClasses=" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "noChanges=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: 📋 Delta Summary
+      shell: bash
+      run: |
+        echo "## 🧮 Delta Calculation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.calculate_delta.outputs.noChanges }}" = "true" ]; then
+          echo "ℹ️ **No changes detected** - deployment will be skipped." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "✅ Changes detected - proceeding with deployment." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Mode | ${{ inputs.deployment-mode }} |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.deployment-mode }}" = "DELTA" ]; then
+            echo "| Compare With | \`${{ inputs.compare-with }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+
+#__________________________GenAI: Generated code ends here______________________________#

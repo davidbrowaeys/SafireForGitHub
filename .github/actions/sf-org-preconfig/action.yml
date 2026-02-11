@@ -1,0 +1,50 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Org Preconfig'
+description: 'Set org-specific metadata configuration before deployment'
+
+inputs:
+  target-env:
+    description: 'Salesforce Target Environment name'
+    required: true
+  config-file:
+    description: 'Path to org-specific metadata definition file'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: ⚙️ Set Specific Org Data
+      shell: bash
+      run: |
+        CONFIG_FILE="${{ inputs.config-file }}"
+        TARGET_ENV="${{ inputs.target-env }}"
+        
+        # Check if the config file path is provided and file exists
+        if [ -z "$CONFIG_FILE" ]; then
+          echo "::warning::Config file path is empty. Skipping org pre-configuration."
+          exit 0
+        fi
+        
+        if [ ! -f "$CONFIG_FILE" ]; then
+          echo "::warning::Config file '$CONFIG_FILE' not found. Skipping org pre-configuration."
+          exit 0
+        fi
+        
+        echo "--- Setting Org-Specific Data ---"
+        echo "Config File: $CONFIG_FILE"
+        echo "Target Environment: $TARGET_ENV"
+        
+        echo "Running: sf dxb org data --config $CONFIG_FILE --environment $TARGET_ENV"
+        sf dxb org data --config "$CONFIG_FILE" --environment "$TARGET_ENV"
+        
+        echo "✅ Org pre-configuration completed successfully"
+
+    - name: 📋 Preconfig Summary
+      shell: bash
+      run: |
+        echo "## ⚙️ Org Pre-Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Applied org-specific metadata configuration for **${{ inputs.target-env }}**" >> $GITHUB_STEP_SUMMARY
+
+#__________________________GenAI: Generated code ends here______________________________#

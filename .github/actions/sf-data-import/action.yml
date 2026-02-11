@@ -1,0 +1,50 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Data Import'
+description: 'Import data to Salesforce org after deployment'
+
+inputs:
+  data-def-file:
+    description: 'Path to data definition file'
+    required: true
+  data-dir:
+    description: 'Directory containing data files'
+    required: false
+    default: 'data'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 📥 Run Data Import
+      shell: bash
+      run: |
+        DATA_DEF_FILE="${{ inputs.data-def-file }}"
+        DATA_DIR="${{ inputs.data-dir }}"
+        
+        if [ -z "$DATA_DEF_FILE" ]; then
+          echo "::warning::Data definition file path is empty. Skipping data import."
+          exit 0
+        fi
+        
+        if [ ! -f "$DATA_DEF_FILE" ]; then
+          echo "::warning::Data definition file '$DATA_DEF_FILE' not found. Skipping data import."
+          exit 0
+        fi
+        
+        echo "--- Starting Data Import ---"
+        echo "Data Definition File: $DATA_DEF_FILE"
+        echo "Data Directory: $DATA_DIR"
+        
+        # Execute the sf dxb data import command
+        sf dxb data import -f "$DATA_DEF_FILE" -d "$DATA_DIR"
+        
+        echo "✅ Data Import completed successfully"
+
+    - name: 📋 Data Import Summary
+      shell: bash
+      run: |
+        echo "## 📥 Data Import" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Data import completed using definition file: \`${{ inputs.data-def-file }}\`" >> $GITHUB_STEP_SUMMARY
+
+#__________________________GenAI: Generated code ends here______________________________#

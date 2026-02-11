@@ -1,0 +1,102 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Report'
+description: 'Generate deployment report and upload artifacts'
+
+inputs:
+  package-xml:
+    description: 'Path to package.xml file'
+    required: true
+  deploy-result:
+    description: 'Path to deployment result JSON file'
+    required: true
+    default: 'deployResult.json'
+  junit-file:
+    description: 'Path to junit.xml test results file'
+    required: false
+    default: 'testresults/apex/junit/junit.xml'
+  coverage-file:
+    description: 'Path to cobertura.xml coverage file'
+    required: false
+    default: 'testresults/apex/coverage/cobertura.xml'
+  scanner-report:
+    description: 'Path to code scanner CSV report'
+    required: false
+    default: 'codeanalyzeroutput/code-scanner-results.csv'
+  target-env:
+    description: 'Target environment (for artifact naming)'
+    required: true
+  run-tests:
+    description: 'Whether tests were executed'
+    required: false
+    default: 'false'
+  scanner-report-exists:
+    description: 'Whether code scanner report exists'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 📊 Generate Deployment Report
+      if: ${{ inputs.run-tests == 'true' }}
+      shell: bash
+      run: |
+        PACKAGE_XML="${{ inputs.package-xml }}"
+        DEPLOY_RESULT="${{ inputs.deploy-result }}"
+        JUNIT_FILE="${{ inputs.junit-file }}"
+        COVERAGE_FILE="${{ inputs.coverage-file }}"
+        SCANNER_REPORT="${{ inputs.scanner-report }}"
+        
+        # Create reports directory if it doesn't exist
+        mkdir -p reports
+        
+        # Build the report command with available files
+        REPORT_CMD="sf dxb deployment report -p $PACKAGE_XML -d reports -r markdown -t \"Salesforce Deployment Report\""
+        
+        if [ -f "$DEPLOY_RESULT" ]; then
+          REPORT_CMD="$REPORT_CMD -f $DEPLOY_RESULT"
+        fi
+        
+        if [ -f "$SCANNER_REPORT" ]; then
+          REPORT_CMD="$REPORT_CMD -a $SCANNER_REPORT"
+        fi
+        
+        if [ -f "$JUNIT_FILE" ]; then
+          REPORT_CMD="$REPORT_CMD -j $JUNIT_FILE"
+        fi
+        
+        if [ -f "$COVERAGE_FILE" ]; then
+          REPORT_CMD="$REPORT_CMD -b $COVERAGE_FILE -c"
+        fi
+        
+        echo "--- Generating Deployment Report ---"
+        echo "$REPORT_CMD"
+        eval $REPORT_CMD
+        
+        # Append the generated report to GitHub Step Summary if it exists
+        if [ -f "reports/deployment-report.md" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat reports/deployment-report.md >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: 📤 Upload Code Analyzer Report
+      uses: actions/upload-artifact@v4
+      if: ${{ inputs.scanner-report-exists == 'true' }}
+      with:
+        name: Code-Analyzer-Report-${{ inputs.target-env }}
+        path: ${{ inputs.scanner-report }}
+        retention-days: 7
+
+    - name: 📤 Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: ${{ inputs.run-tests == 'true' }}
+      with:
+        name: Test-Results-${{ inputs.target-env }}
+        path: |
+          testresults/
+          reports/
+        retention-days: 7
+        if-no-files-found: ignore
+
+#__________________________GenAI: Generated code ends here______________________________#

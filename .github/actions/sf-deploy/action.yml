@@ -1,0 +1,115 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: 'SF Deploy'
+description: 'Deploy metadata to Salesforce org'
+
+inputs:
+  target-env:
+    description: 'Salesforce Target Environment Alias'
+    required: true
+  package-xml:
+    description: 'Path to package.xml file'
+    required: true
+  test-level:
+    description: 'Test Level (NoTestRun, RunLocalTests, RunSpecifiedTests)'
+    required: true
+  test-classes:
+    description: 'Comma-separated list of test classes (for RunSpecifiedTests)'
+    required: false
+    default: ''
+  check-only:
+    description: 'Run deployment as check-only (validation)'
+    required: true
+  pre-destructive-path:
+    description: 'Path to pre-destructive changes XML'
+    required: false
+    default: ''
+  post-destructive-path:
+    description: 'Path to post-destructive changes XML'
+    required: false
+    default: ''
+
+outputs:
+  run-tests:
+    description: 'Whether tests were executed'
+    value: ${{ steps.sfdeploy.outputs.runTests }}
+  deploy-result-file:
+    description: 'Path to deployment result JSON file'
+    value: 'deployResult.json'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🚀 Salesforce Deployment
+      id: sfdeploy
+      shell: bash
+      run: |
+        TARGET_ENV="${{ inputs.target-env }}"
+        PACKAGE_XML="${{ inputs.package-xml }}"
+        TEST_LEVEL="${{ inputs.test-level }}"
+        TEST_CLASSES_INPUT="${{ inputs.test-classes }}"
+        CHECK_ONLY="${{ inputs.check-only }}"
+        PRE_DESTRUCTIVE="${{ inputs.pre-destructive-path }}"
+        POST_DESTRUCTIVE="${{ inputs.post-destructive-path }}"
+        
+        echo "runTests=false" >> $GITHUB_OUTPUT
+        OPTIONS=" -g --wait 666 --json"
+        
+        # Build test classes arguments
+        TESTCLASSES=""
+        if [ "$TEST_LEVEL" = "RunSpecifiedTests" ]; then 
+          if [ -n "$TEST_CLASSES_INPUT" ]; then
+            IFS=',' read -ra values <<< "$TEST_CLASSES_INPUT"
+            for value in "${values[@]}"; do
+              TESTCLASSES+="-t $value "
+            done
+          fi
+
+          if [ -z "$TESTCLASSES" ]; then
+            echo "⚠️ No test classes found. Downgrading TEST_LEVEL to NoTestRun."
+            TEST_LEVEL="NoTestRun"
+          fi
+        fi
+        
+        # Apply deployment options
+        if [ "$CHECK_ONLY" = "true" ]; then
+          OPTIONS="$OPTIONS --dry-run"
+        fi
+        
+        if [ -n "$PRE_DESTRUCTIVE" ] && [ -f "$PRE_DESTRUCTIVE" ]; then
+          OPTIONS="$OPTIONS --pre-destructive-changes $PRE_DESTRUCTIVE"
+        fi
+        
+        if [ -n "$POST_DESTRUCTIVE" ] && [ -f "$POST_DESTRUCTIVE" ]; then
+          OPTIONS="$OPTIONS --post-destructive-changes $POST_DESTRUCTIVE"
+        fi
+        
+        if [ "$TEST_LEVEL" = "RunSpecifiedTests" ] || [ "$TEST_LEVEL" = "RunLocalTests" ]; then
+          OPTIONS="$OPTIONS --junit --results-dir testresults/apex --coverage-formatters cobertura"
+          echo "runTests=true" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "--- Initiating Deployment ---"
+        echo "Target Org: $TARGET_ENV"
+        echo "Package XML: $PACKAGE_XML"
+        echo "Test Level: $TEST_LEVEL"
+        echo "Test Classes: $TESTCLASSES"
+        echo "Check Only: $CHECK_ONLY"
+        echo "Deployment Options: $OPTIONS"
+        
+        # Execute the deployment command
+        echo "sf project start deploy -o $TARGET_ENV -x $PACKAGE_XML -l $TEST_LEVEL $TESTCLASSES $OPTIONS"
+        
+        sf project start deploy \
+          -o "$TARGET_ENV" \
+          -x "$PACKAGE_XML" \
+          -l "$TEST_LEVEL" \
+          $TESTCLASSES \
+          $OPTIONS > deployResult.json
+        
+        # Output the result
+        cat deployResult.json | jq
+        
+        echo "✅ Deployment command completed"
+
+#__________________________GenAI: Generated code ends here______________________________#

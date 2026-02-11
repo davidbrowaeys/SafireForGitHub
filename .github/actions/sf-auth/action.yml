@@ -1,0 +1,31 @@
+#_______________This Code was generated using GenAI tool: Codify, Please check for accuracy_______________#
+
+name: "SF Auth"
+description: "Authenticate to Salesforce org using SFDX Auth URL"
+
+inputs:
+  target-env:
+    description: "Salesforce Target Environment Alias"
+    required: true
+  auth-url:
+    description: "SFDX Auth URL for the target org"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: 🔑 Salesforce Login
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.auth-url }}" ]; then
+            echo "::error::SFDX Auth URL not provided. Ensure the calling workflow passes the secret via the 'AUTH_URL' key in your environment settings."
+            exit 1
+        fi
+
+        echo "${{ inputs.auth-url }}" > credentials.txt
+        sf org login sfdx-url -f credentials.txt -a "${{ inputs.target-env }}" -s
+        rm -f credentials.txt
+
+        echo "✅ Successfully authenticated to ${{ inputs.target-env }}"
+
+#__________________________GenAI: Generated code ends here______________________________#
