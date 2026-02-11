@@ -70,6 +70,9 @@ runs:
         fi
         
         echo "--- Generating Deployment Report ---"
+
+        echo "$REPORT_CMD"
+        eval $REPORT_CMD
         
         if [ -f "reports/deployment-report.md" ]; then
           echo "" >> $GITHUB_STEP_SUMMARY
