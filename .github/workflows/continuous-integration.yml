@@ -248,4 +248,9 @@ jobs:
           run-tests: ${{ steps.deploy.outputs.run-tests }}
           scanner-report-exists: ${{ steps.scanner.outputs.report-exists }}
 
-
+      # 11. Create Git Tag (only on successful actual deployment)
+      - name: 🏷️ Create Git Tag
+        if: ${{ inputs.check-only == false && steps.deploy.conclusion == 'success' && steps.delta.outputs.no-changes == 'false' }}
+        uses: ./.github/actions/git-tag
+        with:
+          prefix: ${{ inputs.target-env }}

@@ -1,0 +1,53 @@
+name: "Git Tag"
+description: "Create and push a git tag based on prefix and run number"
+
+inputs:
+  prefix:
+    description: "Tag prefix (e.g., environment name)"
+    required: true
+  run_number:
+    description: "Run number for the tag suffix"
+    required: false
+    default: ${{ github.run_number }}
+
+outputs:
+  tag_name:
+    description: "The created tag name"
+    value: ${{ steps.create-tag.outputs.tag_name }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: 🏷️ Create and Push Git Tag
+      id: create-tag
+      shell: bash
+      run: |
+        PREFIX="${{ inputs.prefix }}"
+        RUN_NUMBER="${{ inputs.run_number }}"
+        TAG_NAME="${PREFIX}-${RUN_NUMBER}"
+
+        echo "--- Creating Git Tag ---"
+        echo "Prefix: $PREFIX"
+        echo "Run Number: $RUN_NUMBER"
+        echo "Tag Name: $TAG_NAME"
+
+        # Configure git for tagging
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Create lightweight tag
+        git tag "$TAG_NAME"
+
+        # Push tag to remote
+        git push origin "$TAG_NAME"
+
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+        echo "✅ Tag '$TAG_NAME' created and pushed successfully"
+
+        # Add to job summary
+        echo "## 🏷️ Git Tag Created" >> $GITHUB_STEP_SUMMARY
+        echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Tag Name** | \`$TAG_NAME\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| Prefix | $PREFIX |" >> $GITHUB_STEP_SUMMARY
+        echo "| Run Number | $RUN_NUMBER |" >> $GITHUB_STEP_SUMMARY
