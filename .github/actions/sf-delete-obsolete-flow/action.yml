@@ -1,0 +1,100 @@
+name: "SF Delete Obsolete Flows"
+description: "Delete obsolete flows from Salesforce org to clean up unused flow versions"
+
+inputs:
+  target-env:
+    description: "Salesforce Target Environment Alias"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: 🗑️ Delete Obsolete Flows
+      shell: bash
+      run: |
+        TARGET_ENV="${{ inputs.target-env }}"
+        TEMP_FILE="flowsToDelete_$$.csv"
+
+        echo "--- Starting Obsolete Flow Cleanup ---"
+        echo "Target Environment: $TARGET_ENV"
+
+        # Query for obsolete flows using Tooling API
+        echo "Querying for obsolete flows..."
+        sf data query \
+          --query "SELECT Id, Definition.DeveloperName, VersionNumber FROM Flow WHERE Status = 'Obsolete'" \
+          --target-org "$TARGET_ENV" \
+          --use-tooling-api \
+          --result-format csv > "$TEMP_FILE" 2>&1 || true
+
+        # Check if file exists and has content
+        if [ ! -f "$TEMP_FILE" ]; then
+          echo "✅ No obsolete flows query result file created. Nothing to delete."
+          exit 0
+        fi
+
+        # Check for empty results or error messages
+        if grep -q "Your query returned no results" "$TEMP_FILE" 2>/dev/null; then
+          echo "✅ No obsolete flows found. Nothing to delete."
+          rm -f "$TEMP_FILE"
+          exit 0
+        fi
+
+        # Count flows to delete (excluding header)
+        FLOW_COUNT=$(tail -n +2 "$TEMP_FILE" | grep -c "^[0-9A-Za-z]" 2>/dev/null || echo "0")
+
+        if [ "$FLOW_COUNT" -eq 0 ]; then
+          echo "✅ No obsolete flows found. Nothing to delete."
+          rm -f "$TEMP_FILE"
+          exit 0
+        fi
+
+        echo "Found $FLOW_COUNT obsolete flow version(s) to delete."
+        echo ""
+
+        # Process each flow ID
+        DELETED_COUNT=0
+        FAILED_COUNT=0
+
+        while IFS=, read -r FLOW_ID FLOW_NAME VERSION_NUMBER; do
+          # Skip header row and empty lines
+          if [[ "$FLOW_ID" == "Id" ]] || [[ -z "$FLOW_ID" ]] || [[ "$FLOW_ID" == "Your query returned no results." ]]; then
+            continue
+          fi
+          
+          echo "Deleting: $FLOW_NAME (Version: $VERSION_NUMBER, Id: $FLOW_ID)"
+          
+          if sf data delete record \
+            --sobject Flow \
+            --record-id "$FLOW_ID" \
+            --target-org "$TARGET_ENV" \
+            --use-tooling-api 2>&1; then
+            ((DELETED_COUNT++))
+            echo "  ✓ Deleted successfully"
+          else
+            ((FAILED_COUNT++))
+            echo "  ✗ Failed to delete (may be referenced or protected)"
+          fi
+        done < "$TEMP_FILE"
+
+        # Cleanup temp file
+        rm -f "$TEMP_FILE"
+
+        echo ""
+        echo "--- Obsolete Flow Cleanup Summary ---"
+        echo "Total processed: $FLOW_COUNT"
+        echo "Successfully deleted: $DELETED_COUNT"
+        echo "Failed to delete: $FAILED_COUNT"
+
+        if [ "$DELETED_COUNT" -gt 0 ]; then
+          echo "✅ Obsolete flow cleanup completed successfully"
+        else
+          echo "ℹ️ No flows were deleted"
+        fi
+
+        # Add to GitHub Step Summary
+        echo "## 🗑️ Obsolete Flow Cleanup" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+        echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+        echo "| Obsolete flows found | $FLOW_COUNT |" >> $GITHUB_STEP_SUMMARY
+        echo "| Successfully deleted | $DELETED_COUNT |" >> $GITHUB_STEP_SUMMARY
+        echo "| Failed to delete | $FAILED_COUNT |" >> $GITHUB_STEP_SUMMARY
