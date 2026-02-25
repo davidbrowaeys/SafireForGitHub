@@ -62,10 +62,10 @@ runs:
             --record-id "$FLOW_ID" \
             --target-org "$TARGET_ENV" \
             --use-tooling-api 2>&1; then
-            ((DELETED_COUNT++))
+            DELETED_COUNT=$((DELETED_COUNT + 1))
             echo "  ✓ Deleted successfully"
           else
-            ((FAILED_COUNT++))
+            FAILED_COUNT=$((FAILED_COUNT + 1))
             echo "  ✗ Failed to delete (may be referenced or protected)"
           fi
         done
