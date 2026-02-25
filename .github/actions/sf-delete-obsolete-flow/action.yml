@@ -13,51 +13,45 @@ runs:
       shell: bash
       run: |
         TARGET_ENV="${{ inputs.target-env }}"
-        TEMP_FILE="flowsToDelete_$$.csv"
-
+        
         echo "--- Starting Obsolete Flow Cleanup ---"
         echo "Target Environment: $TARGET_ENV"
-
-        # Query for obsolete flows using Tooling API
+        
+        # Query for obsolete flows using Tooling API with JSON output
         echo "Querying for obsolete flows..."
-        sf data query \
+        QUERY_RESULT=$(sf data query \
           --query "SELECT Id, Definition.DeveloperName, VersionNumber FROM Flow WHERE Status = 'Obsolete'" \
           --target-org "$TARGET_ENV" \
           --use-tooling-api \
-          --result-format csv > "$TEMP_FILE" 2>&1 || true
-
-        # Check if file exists and has content
-        if [ ! -f "$TEMP_FILE" ]; then
-          echo "✅ No obsolete flows query result file created. Nothing to delete."
-          exit 0
-        fi
-
-        # Check for empty results or error messages
-        if grep -q "Your query returned no results" "$TEMP_FILE" 2>/dev/null; then
+          --json 2>/dev/null || echo '{"result":{"records":[]}}')
+        
+        # Extract records using jq
+        FLOW_COUNT=$(echo "$QUERY_RESULT" | jq -r '.result.records | length')
+        
+        if [ "$FLOW_COUNT" -eq 0 ] || [ "$FLOW_COUNT" == "null" ]; then
           echo "✅ No obsolete flows found. Nothing to delete."
-          rm -f "$TEMP_FILE"
+          
+          # Add to GitHub Step Summary
+          echo "## 🗑️ Obsolete Flow Cleanup" >> $GITHUB_STEP_SUMMARY
+          echo "No obsolete flows found. Nothing to delete." >> $GITHUB_STEP_SUMMARY
           exit 0
         fi
-
-        # Count flows to delete (excluding header)
-        FLOW_COUNT=$(tail -n +2 "$TEMP_FILE" | grep -c "^[0-9A-Za-z]" 2>/dev/null || echo "0")
-
-        if [ "$FLOW_COUNT" -eq 0 ]; then
-          echo "✅ No obsolete flows found. Nothing to delete."
-          rm -f "$TEMP_FILE"
-          exit 0
-        fi
-
+        
         echo "Found $FLOW_COUNT obsolete flow version(s) to delete."
         echo ""
-
-        # Process each flow ID
+        
+        # Process each flow
         DELETED_COUNT=0
         FAILED_COUNT=0
-
-        while IFS=, read -r FLOW_ID FLOW_NAME VERSION_NUMBER; do
-          # Skip header row and empty lines
-          if [[ "$FLOW_ID" == "Id" ]] || [[ -z "$FLOW_ID" ]] || [[ "$FLOW_ID" == "Your query returned no results." ]]; then
+        
+        for i in $(seq 0 $((FLOW_COUNT - 1))); do
+          FLOW_ID=$(echo "$QUERY_RESULT" | jq -r ".result.records[$i].Id")
+          FLOW_NAME=$(echo "$QUERY_RESULT" | jq -r ".result.records[$i].Definition.DeveloperName // \"Unknown\"")
+          VERSION_NUMBER=$(echo "$QUERY_RESULT" | jq -r ".result.records[$i].VersionNumber // \"?\"")
+          
+          # Skip if ID is invalid
+          if [ -z "$FLOW_ID" ] || [ "$FLOW_ID" == "null" ]; then
+            echo "⚠️ Skipping record with invalid ID"
             continue
           fi
           
@@ -74,23 +68,20 @@ runs:
             ((FAILED_COUNT++))
             echo "  ✗ Failed to delete (may be referenced or protected)"
           fi
-        done < "$TEMP_FILE"
-
-        # Cleanup temp file
-        rm -f "$TEMP_FILE"
-
+        done
+        
         echo ""
         echo "--- Obsolete Flow Cleanup Summary ---"
         echo "Total processed: $FLOW_COUNT"
         echo "Successfully deleted: $DELETED_COUNT"
         echo "Failed to delete: $FAILED_COUNT"
-
+        
         if [ "$DELETED_COUNT" -gt 0 ]; then
           echo "✅ Obsolete flow cleanup completed successfully"
         else
           echo "ℹ️ No flows were deleted"
         fi
-
+        
         # Add to GitHub Step Summary
         echo "## 🗑️ Obsolete Flow Cleanup" >> $GITHUB_STEP_SUMMARY
         echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
