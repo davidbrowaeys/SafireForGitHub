@@ -224,14 +224,7 @@ jobs:
         with:
           target-env: ${{ inputs.target-env }}
 
-      # 9. Delete Obsolete Flows (Conditional - only on actual deployment)
-      - name: 🗑️ Delete Obsolete Flows
-        if: ${{ vars.DELETE_OBSOLETE_FLOWS == 'true' && inputs.check-only == false && success() }}
-        uses: ./.github/actions/sf-delete-obsolete-flow
-        with:
-          target-env: ${{ inputs.target-env }}
-
-      # 10. LWC Jest Tests (Conditional)
+      # 9. LWC Jest Tests (Conditional)
       - name: 🧪 Run LWC Jest Tests
         if: ${{ inputs.runjest == true }}
         uses: ./.github/actions/sf-jest
@@ -241,7 +234,7 @@ jobs:
           fail-on-error: ${{ inputs.jest-fail-on-error }}
           output-dir: testresults/lwc
 
-      # 11. Generate Report and Upload Artifacts
+      # 10. Generate Report and Upload Artifacts
       - name: 📊 Generate Report and Upload Artifacts
         if: ${{ always() }}
         uses: ./.github/actions/sf-report
@@ -254,6 +247,13 @@ jobs:
           target-env: ${{ inputs.target-env }}
           run-tests: ${{ steps.deploy.outputs.run-tests }}
           scanner-report-exists: ${{ steps.scanner.outputs.report-exists }}
+
+      # 11. Delete Obsolete Flows (Conditional - only on actual deployment)
+      - name: 🗑️ Delete Obsolete Flows
+        if: ${{ vars.DELETE_OBSOLETE_FLOWS == 'true' && inputs.check-only == false && success() }}
+        uses: ./.github/actions/sf-delete-obsolete-flow
+        with:
+          target-env: ${{ inputs.target-env }}
 
       # 12. Create Git Tag (only on successful actual deployment)
       - name: 🏷️ Create Git Tag
