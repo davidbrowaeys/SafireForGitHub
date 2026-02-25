@@ -183,6 +183,7 @@ jobs:
         with:
           apex-classes: ${{ steps.delta.outputs.apex-classes }}
           output-dir: codeanalyzeroutput
+          severity: ${{ vars.SEVERITY_THRESHOLD }}
 
       # 5. Salesforce Deployment
       - name: 🚀 Salesforce Deployment
@@ -247,6 +248,7 @@ jobs:
           target-env: ${{ inputs.target-env }}
           run-tests: ${{ steps.deploy.outputs.run-tests }}
           scanner-report-exists: ${{ steps.scanner.outputs.report-exists }}
+          min-severity: ${{ vars.SEVERITY_THRESHOLD }}
 
       # 11. Delete Obsolete Flows (Conditional - only on actual deployment)
       - name: 🗑️ Delete Obsolete Flows

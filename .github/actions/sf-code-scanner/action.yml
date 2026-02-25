@@ -10,6 +10,10 @@ inputs:
     description: 'Output directory for scanner results'
     required: false
     default: 'codeanalyzeroutput'
+  severity:
+    description: 'Severity level of a found violation that must be met or exceeded to cause this command to fail with a non-zero exit code.'
+    required: false
+    default: '2'
 
 outputs:
   report-exists:
@@ -26,6 +30,7 @@ runs:
       run: |
         APEX_CLASSES="${{ inputs.apex-classes }}"
         OUTPUT_DIR="${{ inputs.output-dir }}"
+        SEVERITY="${{ inputs.severity }}"
         
         # Check if apex classes are provided
         if [ -z "$APEX_CLASSES" ] || [ "$APEX_CLASSES" = "./**/*.cls" ]; then
@@ -51,7 +56,7 @@ runs:
         
         # Run the scan
         sf code-analyzer run \
-          -s 2 \
+          -s "$SEVERITY" \
           -t "$APEX_CLASSES" \
           -f "$OUTPUT_DIR/code-scanner-results.csv"
         
