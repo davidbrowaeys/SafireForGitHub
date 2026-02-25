@@ -38,7 +38,6 @@ runs:
   using: 'composite'
   steps:
     - name: 📊 Generate Deployment Report
-      if: ${{ inputs.run-tests == 'true' }}
       shell: bash
       run: |
         PACKAGE_XML="${{ inputs.package-xml }}"
