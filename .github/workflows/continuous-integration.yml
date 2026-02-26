@@ -91,11 +91,12 @@ jobs:
       - name: ⬇️ Checkout Reusable Actions
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/SafireForGitHub
+          repository: SCo-SyWay/SafireForGitHub
           path: .github/actions-repo
           sparse-checkout: |
             .github/actions
           sparse-checkout-cone-mode: false
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
       
       - name: 📁 Setup Actions Directory
         run: |
